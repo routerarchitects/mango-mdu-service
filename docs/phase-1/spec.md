@@ -49,7 +49,9 @@ Phase 1 includes:
 - normalized request validation
 - normalized error handling
 - request tracing, request ID, and correlation ID propagation
-- removal or isolation of placeholder scaffold APIs from production routes
+- a clean production route baseline without placeholder scaffold CRUD surfaces
+
+The non-business support surface is limited to `/livez` and `/api/v1/system` while Mango-facing `/api/v1/mdu/*` business APIs remain Phase 1 implementation work.
 
 ---
 
@@ -94,6 +96,18 @@ If any internal-only endpoint is introduced in Phase 1, it:
 - must not be exposed as a normal Mango-facing business route
 
 Admin/debug/support APIs are out of the normal Phase 1 business scope except minimal operational support endpoints such as health/readiness where required by the platform.
+
+For the current runtime baseline, the operational support surface is:
+
+- `GET /livez` on both public and private ports without authentication
+- `/api/v1/system` on both public and private ports through the shared subsystem/system-routes module
+
+`/api/v1/system` is not a Mango-facing Phase 1 business API. It is an operational support API with an explicitly documented **multi-mode auth rule**:
+
+- on the public port it uses validated bearer-token auth
+- on the private port it uses the approved internal authentication model
+
+This multi-mode rule is intentional and must remain explicit in repo-tracked API contract and requirements documents so the security posture is not ambiguous.
 
 ---
 
@@ -338,7 +352,7 @@ If a route does not define partial-data behavior, it should fail rather than ret
 Phase 1 must provide:
 
 - Dockerized deployment
-- readiness and liveness endpoints
+- liveness endpoints, and readiness support where required by the platform contract
 - structured logging
 - request ID and correlation ID support
 - traceable downstream calls
@@ -379,7 +393,7 @@ Phase 1 must provide:
 - request ID and correlation ID support
 - metrics for request count, latency, dependency latency, and dependency failures
 - traceable downstream calls
-- readiness and liveness endpoints
+- liveness endpoints, and readiness support where required by the platform contract
 - Dockerized deployment
 - CI-backed automated verification
 
@@ -397,7 +411,14 @@ For Phase 1, OpenAPI must include:
 - success responses
 - error responses
 - auth expectations
+- explicit multi-mode auth rules where an endpoint is intentionally available through more than one interface/auth class
 - examples where appropriate
+
+For the current runtime and contract baseline, this specifically means:
+
+- `/livez` is documented as unauthenticated on both ports
+- `/api/v1/system` is documented as an operational support API, not a Mango-facing business API
+- `/api/v1/system` documents both its public bearer-token mode and its private internal-auth mode
 
 Phase 1 testing and CI must cover at minimum:
 
@@ -427,7 +448,7 @@ After Phase 1, we will have:
 5. normalized Mango-facing contracts instead of raw downstream behavior
 6. consistent validation and error handling
 7. production-ready tracing, logging, metrics, and readiness behavior
-8. removal of misleading scaffold APIs from the production contract
+8. no placeholder scaffold APIs remaining in the claimed production contract
 9. OpenAPI-covered production endpoints
 10. CI-verified foundation behavior for auth, handlers, and downstream adapters
 
@@ -444,13 +465,14 @@ Phase 1 is complete only when:
 - user context is forwarded to PROV where required
 - `GET /api/v1/mdu/me` and `GET /api/v1/mdu/session` are working as bootstrap APIs
 - foundational PROV-backed APIs are available
-- placeholder production routes are removed or isolated
+- no placeholder scaffold production routes remain in claimed scope
 - normalized validation and error handling are implemented
 - logging, tracing, metrics, and readiness are in place
 - OpenAPI and implementation are aligned
 - config validation and fail-fast startup are implemented
 - required automated tests pass in CI
 - Docker build and startup smoke test pass
+- the operational support routes that remain (`/livez` and `/api/v1/system`) are documented with the same exposure and auth posture implemented in runtime
 - no hidden local ownership or placeholder behavior remains in claimed scope
 
 ---
