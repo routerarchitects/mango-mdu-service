@@ -46,7 +46,7 @@ The downstream trust model is:
 3. The downstream service, especially PROV, interprets that forwarded user context and enforces its own authorization and RBAC.
 4. MDU does not resolve PROV RBAC locally and does not persist RBAC truth.
 
-PROV remains the system of record for users, customers, hierarchy, roles, policies, inventory ownership, and configuration ownership. Billing Service remains the system of record for billing. OWGW remains the system of record for live runtime operations. NW Topology Service remains the system of record for topology computation. OWANALYTICS remains the system of record for telemetry and historical analytics. MDU owns orchestration, shaping, composition, and approved workflow state only.
+OWSEC remains the system of record/authoritative owner for users. PROV remains the system of record for customers, hierarchy, roles, policies, inventory ownership, and configuration ownership. Billing Service remains the system of record for billing. OWGW remains the system of record for live runtime operations. NW Topology Service remains the system of record for topology computation. OWANALYTICS remains the system of record for telemetry and historical analytics. MDU owns orchestration, shaping, composition, and approved workflow state only.
 
 ---
 
@@ -257,7 +257,7 @@ Current known OWSEC routes include:
 
 ## 8.2 PROV
 
-PROV owns users, customers, operators, entities, venues, roles, policies, RBAC, hierarchy, inventory ownership, and configuration ownership.
+OWSEC is the authoritative owner for users. PROV owns customers, operators, entities, venues, roles, policies, RBAC, hierarchy, inventory ownership, and configuration ownership.
 
 MDU shall call PROV using service authentication and forwarded user context:
 
@@ -551,7 +551,7 @@ Phase 1 does not require:
 
 ### Indicative API Families
 
-- `GET /api/v1/mdu/me`
+- `GET /api/v1/mdu/me` (note: user identity and profile fields are retrieved from PROV in Phase 1)
 - `GET /api/v1/mdu/session`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`
@@ -705,7 +705,7 @@ Phase 5 includes:
 5. MDU validates the inbound token before protected business workflows.
 6. MDU calls downstream services with service authentication such as `x-api`.
 7. MDU forwards user context to downstream services using `x-authorization` where required.
-8. PROV owns users, customers, hierarchy, policies, roles, RBAC, inventory ownership, and configuration ownership.
+8. OWSEC is the authoritative owner for users. PROV owns customers, hierarchy, policies, roles, RBAC, inventory ownership, and configuration ownership.
 9. Billing Service owns billing truth, while MDU owns the Mango-facing billing API contracts and orchestration path.
 10. OWGW owns live device runtime and command execution.
 11. NW Topology Service owns topology graph computation.

@@ -19,7 +19,8 @@ The goal of Phase 1 is to establish MDU Service as the service that:
 - calls downstream services using service credentials
 - forwards user context to PROV where required
 - exposes normalized Mango-facing contracts
-- preserves PROV as the source of truth for users, customers, hierarchy, roles, policies, and RBAC
+- preserves OWSEC as the authoritative owner for users
+- preserves PROV as the source of truth for customers, hierarchy, roles, policies, and RBAC
 
 In simple terms, Phase 1 makes MDU the first real backend entry point for Mango operator workflows.
 
@@ -160,7 +161,7 @@ MDU does not become the RBAC authority in Phase 1, but it must still enforce the
 
 The main Phase 1 API families are:
 
-- `GET /api/v1/mdu/me`
+- `GET /api/v1/mdu/me` (note: user identity and profile fields are retrieved from PROV in Phase 1)
 - `GET /api/v1/mdu/session`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`
@@ -172,6 +173,8 @@ The main Phase 1 API families are:
 These are Mango-facing APIs. They do not need to mirror downstream APIs exactly, but they must be backed by the approved Phase 1 auth flow and PROV integration where the domain belongs to PROV.
 
 The Phase 1 bootstrap APIs are view/bootstrap endpoints only. They do not mean MDU owns login or session issuance.
+
+> **Note on `GET /api/v1/mdu/me`:** OWSEC is the authoritative owner for the user account. In Phase 1, user identity and extended profile fields (such as role, operator scope, and account metadata) are sourced from PROV. MDU composes these into the normalized `me` response.
 
 ---
 
@@ -473,4 +476,4 @@ Phase 1 is complete only when:
 
 Phase 1 is the **foundation release** of MDU Service.
 
-It makes MDU the authenticated orchestration entry point for Mango operator workflows, with real PROV-backed foundational APIs, while keeping OWSEC and PROV as the systems that continue to own authentication, hierarchy, customers, and RBAC truth.
+It makes MDU the authenticated orchestration entry point for Mango operator workflows, with real PROV-backed foundational APIs, while keeping OWSEC as the authoritative owner for users and authentication, and PROV as the system of record for customers, hierarchy, and RBAC truth.

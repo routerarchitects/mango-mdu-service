@@ -9,7 +9,7 @@ It is based on the Phase 1 scope from the MDU master requirements and Phase 1 sp
 - MDU is the Mango-facing authenticated orchestration layer
 - OWSEC is used for token validation and identity/session checks
 - PROV is used for foundational operator-domain workflows
-- MDU does not own login, session issuance, users, customers, hierarchy, roles, policies, or RBAC truth
+- MDU does not own login, session issuance, or users (OWSEC is the authoritative owner); customers, hierarchy, roles, policies, and RBAC truth remain with PROV
 - MDU normalizes Mango-facing contracts and hides downstream quirks
 
 This workflow document explains the intended runtime flow of Phase 1 business APIs and how MDU interacts with OWSEC and PROV.
@@ -39,7 +39,7 @@ So Phase 1 is already a real integration phase with **OWSEC + PROV**.
 
 Phase 1 includes the following Mango-facing API families:
 
-- `GET /api/v1/mdu/me`
+- `GET /api/v1/mdu/me` (note: user identity and profile fields are retrieved from PROV in Phase 1)
 - `GET /api/v1/mdu/session`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`
@@ -173,6 +173,8 @@ PROV remains responsible for:
 - hierarchy visibility
 - source-of-truth data for operators, entities, venues, roles, policies, and customers
 
+OWSEC remains the authoritative owner for the user account. User identity claims come from the OWSEC-validated token; extended profile fields are retrieved from PROV.
+
 ## Step 7 — MDU normalizes response
 
 MDU maps the downstream response into a Mango-facing contract.
@@ -200,9 +202,9 @@ Return normalized current-caller context for the authenticated user.
 
 1. UI calls `GET /api/v1/mdu/me`
 2. MDU validates the bearer token through OWSEC
-3. MDU derives caller identity context
-4. If required by the final contract, MDU may fetch additional caller-related truth from PROV
-5. MDU builds a normalized `me` response
+3. MDU derives caller identity context (OWSEC is the authoritative owner for the user account)
+4. MDU calls PROV with service auth and forwarded user context to fetch extended identity and profile fields (such as role, operator scope, and account metadata)
+5. MDU builds a normalized `me` response by composing the OWSEC-verified identity with PROV-sourced profile data
 6. MDU returns the Mango-facing result
 
 ## Important Rule
@@ -215,7 +217,7 @@ It does **not**:
 - issue tokens
 - own session lifecycle
 
-OWSEC remains the authentication owner.
+OWSEC remains the authoritative owner for the user account. In Phase 1, all user identity and extended profile fields in the `me` response are sourced from PROV.
 
 ---
 
