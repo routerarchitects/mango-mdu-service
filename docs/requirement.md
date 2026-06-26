@@ -551,7 +551,7 @@ Phase 1 does not require:
 
 ### Indicative API Families
 
-- `GET /api/v1/mdu/me` (note: user identity and profile fields are retrieved from PROV in Phase 1)
+- `GET /api/v1/mdu/me` — OWSEC is the authoritative owner for user identity; MDU calls PROV to fetch the authenticated user's Mango bootstrap context (operator scope, customer scope, roles, hierarchy visibility) and composes the normalized `/me` response
 - `GET /api/v1/mdu/session`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`

@@ -161,7 +161,7 @@ MDU does not become the RBAC authority in Phase 1, but it must still enforce the
 
 The main Phase 1 API families are:
 
-- `GET /api/v1/mdu/me` (note: user identity and profile fields are retrieved from PROV in Phase 1)
+- `GET /api/v1/mdu/me` — OWSEC is the authoritative owner for user identity; MDU calls PROV to fetch the authenticated user's Mango bootstrap context (operator scope, customer scope, roles, hierarchy visibility) and composes the normalized `/me` response
 - `GET /api/v1/mdu/session`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`
@@ -174,7 +174,7 @@ These are Mango-facing APIs. They do not need to mirror downstream APIs exactly,
 
 The Phase 1 bootstrap APIs are view/bootstrap endpoints only. They do not mean MDU owns login or session issuance.
 
-> **Note on `GET /api/v1/mdu/me`:** OWSEC is the authoritative owner for the user account. In Phase 1, user identity and extended profile fields (such as role, operator scope, and account metadata) are sourced from PROV. MDU composes these into the normalized `me` response.
+> **Note on `GET /api/v1/mdu/me`:** OWSEC owns user CRUD, login, token issuance, and user account identity. PROV provides the logged-in user's operational context for Mango — operator scope, customer scope, roles, policies, hierarchy visibility, and dashboard bootstrap data. MDU composes the final `/me` response from the OWSEC-validated identity plus the PROV-fetched Mango context.
 
 ---
 
