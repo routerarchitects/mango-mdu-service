@@ -2,8 +2,6 @@
 
 A repo-ready foundation for the Mango Cloud MDU backend service in the OpenWiFi environment. This service is intended to evolve into the MDU orchestration layer that integrates with OWSEC and PROV.
 
-Important: the currently checked-in sample CRUD, sample database schema, and `/api/v1/items` endpoints are temporary scaffold placeholder code only. They are starter examples carried over from the foundation template and must not be interpreted as actual MDU domain, API, or schema decisions.
-
 ---
 
 ## Folder Structure
@@ -16,7 +14,7 @@ Important: the currently checked-in sample CRUD, sample database schema, and `/a
 │   └── main.go                  # Boilerplate entrypoint (Config load, Logger init, runs App, OS signals)
 ├── db/
 │   └── schema/                  # SQL schema migrations directory
-│       └── 0001_initial.sql     # Placeholder SQL table setup
+│       └── 0001_initial.sql     # Reserved migration baseline for approved MDU-owned schema
 ├── docs/                        # Specifications and API contracts templates
 │   ├── requirement.md           # Working requirements document
 │   ├── design.md                # Technical design doc template
@@ -35,14 +33,27 @@ Important: the currently checked-in sample CRUD, sample database schema, and `/a
 │   ├── config/                  # caarlos0/env environment parsing
 │   ├── db/                      # Connection pool (pgxpool) & migration engine
 │   ├── http/                    # Routing, middleware, and Dual TLS engine
-│   ├── models/                  # Domain-level request/response model structs
-│   └── services/                # Business logic interfaces and services
+│   ├── models/                  # Domain-level request/response model package
+│   └── services/                # Business logic service package
 ├── .dockerignore                # Exclusions for Docker build context
 ├── .gitignore                   # Exclusions for Git repository
 ├── Dockerfile                   # Multi-stage production container configuration
 ├── Makefile                     # Build, run, test, and containerize commands
 ├── README.md                    # This developer guide
 ```
+
+---
+
+## Runtime Surface
+
+The current checked-in runtime baseline exposes:
+
+- public TLS interface on port `16010`
+- private TLS interface on port `17010`
+- unauthenticated `/livez` on both ports
+- authenticated `/api/v1/system` diagnostics routes on both ports via the shared `system-routes` module
+
+The MDU-specific Mango-facing `/api/v1/mdu/*` business APIs described in the Phase 1 docs are not yet implemented in this branch.
 
 ---
 

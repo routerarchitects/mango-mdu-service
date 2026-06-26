@@ -4,13 +4,10 @@ info:
   version: "1.0.0"
   description: |
     REST API definition for mango-mdu-service microservice.
-
-    Temporary scaffold placeholder note:
-    the `items` endpoints and related request/response schemas in this document are starter examples only. They are kept temporarily to preserve a runnable scaffold and do not represent the planned MDU domain model.
     
     ### Dual-Port HTTP Architecture
     The microservice operates two isolated HTTP interfaces:
-    1. **Public Port (default: 16010)**: Exposes business-level API endpoints (such as `/api/v1/items`).
+    1. **Public Port (default: 16010)**: Exposes the public API interface.
        * Authentication: Enabled by default, uses public/private token validation via OpenWiFi Security service.
     2. **Private Port (default: 17010)**: Exposes internal administration, metrics, and diagnostics.
        * Authentication: Requires both `X-INTERNAL-NAME` and `X-API-KEY` headers.
@@ -55,6 +52,10 @@ paths:
     get:
       summary: "Retrieve system diagnostics and metrics"
       description: "Returns system status info or resource usage based on the requested command."
+      security:
+        - PublicTokenAuth: []
+        - PrivateInternalNameAuth: []
+          PrivateApiKeyAuth: []
       parameters:
         - name: "command"
           in: "query"
@@ -70,6 +71,10 @@ paths:
     post:
       summary: "Modify log levels or query diagnostics schema"
       description: "Dynamically mutate runtime subsystem log levels or fetch subsystem metadata."
+      security:
+        - PublicTokenAuth: []
+        - PrivateInternalNameAuth: []
+          PrivateApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -100,102 +105,6 @@ paths:
         "400":
           description: "Invalid command or malformed body"
 
-  /api/v1/items:
-    servers:
-      - url: "https://{host}:{publicPort}"
-        description: "Public HTTP API Interface"
-    security:
-      - PublicTokenAuth: []
-    get:
-      summary: "List all items (temporary scaffold placeholder)"
-      responses:
-        "200":
-          description: "Successful response"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemListResponse"
-    post:
-      summary: "Create a new item (temporary scaffold placeholder)"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateItemRequest"
-      responses:
-        "201":
-          description: "Item successfully created"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemResponse"
-        "400":
-          description: "Invalid input"
-
-  /api/v1/items/{id}:
-    servers:
-      - url: "https://{host}:{publicPort}"
-        description: "Public HTTP API Interface"
-    security:
-      - PublicTokenAuth: []
-    get:
-      summary: "Get an item by ID (temporary scaffold placeholder)"
-      parameters:
-        - name: "id"
-          in: "path"
-          required: true
-          schema:
-            type: "string"
-            format: "uuid"
-      responses:
-        "200":
-          description: "Successful response"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemResponse"
-        "404":
-          description: "Item not found"
-    put:
-      summary: "Update an existing item (temporary scaffold placeholder)"
-      parameters:
-        - name: "id"
-          in: "path"
-          required: true
-          schema:
-            type: "string"
-            format: "uuid"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateItemRequest"
-      responses:
-        "200":
-          description: "Item updated successfully"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemResponse"
-        "404":
-          description: "Item not found"
-    delete:
-      summary: "Delete an item (temporary scaffold placeholder)"
-      parameters:
-        - name: "id"
-          in: "path"
-          required: true
-          schema:
-            type: "string"
-            format: "uuid"
-      responses:
-        "204":
-          description: "Item successfully deleted"
-        "404":
-          description: "Item not found"
-
 components:
   securitySchemes:
     PublicTokenAuth:
@@ -213,60 +122,3 @@ components:
       in: header
       name: X-API-KEY
       description: "API Key authorization header required on the Private API interface."
-  schemas:
-    SampleItem:
-      type: "object"
-      required:
-        - "id"
-        - "name"
-        - "description"
-        - "createdAt"
-        - "updatedAt"
-      properties:
-        id:
-          type: "string"
-          format: "uuid"
-        name:
-          type: "string"
-        description:
-          type: "string"
-        createdAt:
-          type: "string"
-          format: "date-time"
-        updatedAt:
-          type: "string"
-          format: "date-time"
-    CreateItemRequest:
-      type: "object"
-      required:
-        - "name"
-      properties:
-        name:
-          type: "string"
-          minLength: 2
-          maxLength: 255
-        description:
-          type: "string"
-          maxLength: 1000
-    UpdateItemRequest:
-      type: "object"
-      properties:
-        name:
-          type: "string"
-          minLength: 2
-          maxLength: 255
-        description:
-          type: "string"
-          maxLength: 1000
-    ItemResponse:
-      type: "object"
-      properties:
-        data:
-          $ref: "#/components/schemas/SampleItem"
-    ItemListResponse:
-      type: "object"
-      properties:
-        data:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/SampleItem"

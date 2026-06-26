@@ -9,7 +9,6 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
-	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
@@ -21,7 +20,6 @@ type Dependencies struct {
 	ServerLogger      *slog.Logger
 	ServerConfig      config.ServerConfig
 	SubsystemConfig   subsystemroutes.Config
-	ItemHandler       *handlers.ItemHandler
 	PublicAuthConfig  auth.PublicAuthConfig
 	PrivateAuthConfig auth.InternalAPIKeyConfig
 	TokenValidator    *owsec.SecurityClient
@@ -36,10 +34,6 @@ type Module struct {
 
 // NewModule initializes the HTTP apps, CORS, loggers, auth middlewares, and routes.
 func NewModule(deps Dependencies) (*Module, error) {
-	if deps.ItemHandler == nil {
-		return nil, fmt.Errorf("item handler is required")
-	}
-
 	authMiddleware, err := middleware.NewServiceAuth(
 		deps.AuthEnabled,
 		deps.PublicAuthConfig,
@@ -68,7 +62,6 @@ func NewModule(deps Dependencies) (*Module, error) {
 	// Configure public routes
 	routes.RegisterPublic(publicApp, routes.PublicDeps{
 		AuthHandler: authMiddleware.GetPublicAuthHandler(),
-		Item:        deps.ItemHandler,
 		Subsystem:   deps.SubsystemConfig,
 	})
 

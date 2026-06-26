@@ -2,58 +2,55 @@
 
 This document details the architectural layout, database models, and internal logic flows for the **mango-mdu-service** microservice.
 
-Temporary scaffold placeholder note:
-the sample `items` CRUD, `sample_items` table, and related example flow below are starter scaffold artifacts only. They are not intended to represent the final MDU service design.
-
-The example diagram and schema notes below describe the current scaffold sample flow only. They are not a final statement of MDU routing, subsystem exposure, or production domain structure.
-
 ---
 
 ## 1. High-Level Architecture
 
-Provide a text or Mermaid diagram showing how data flows between callers (e.g. `owsub`), this service, and the database.
+The current checked-in baseline uses a dual-port TLS HTTP runtime, shared auth middleware, PostgreSQL-backed startup/migration wiring, and optional service discovery / RPC integrations.
 
 ```text
-[External Caller] ---> (Public Port) ---> [http.Module] ---> [handlers]
-                                                                  |
-                                                                  v
-[DB Engine] <=== (pgxpool) === [db.Database] <--- [services] <----+
+[External Caller] ---> (Public TLS Port 16010) ---> [http.Module] ---> [public auth middleware] ---> [/livez, /api/v1/system]
+
+[Internal Caller] ---> (Private TLS Port 17010) --> [http.Module] ---> [private auth middleware] --> [/livez, /api/v1/system]
+
+[Bootstrap / Runtime] --> [db.Database migrations]
+                       --> [service discovery]
+                       --> [service RPC / OWSEC client]
 ```
 
 ---
 
 ## 2. Logical Data Model
 
-Describe the core data entities and their relations (e.g., one-to-many, many-to-many relationships).
+No Mango-domain entity model is committed in the current baseline. MDU-facing domain models for users, operators, entities, venues, roles, policies, and related orchestration views should be introduced only with the corresponding Phase 1 implementation work.
 
 ---
 
 ## 3. Database Schema
 
-Detail the SQL table schemas that will be added to `db/schema/` for startup migration.
-
-### Table: `sample_items`
-```sql
-CREATE TABLE IF NOT EXISTS sample_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-```
+The current checked-in migration baseline does not define any approved MDU-owned business tables. New schema should be added only when a Phase 1 workflow requires local state that does not duplicate downstream source-of-truth ownership.
 
 ---
 
 ## 4. REST API Endpoints Contract
 
-List the endpoints exposed by the service, their input structures, and output envelopes. Refer to `openapi.yaml` for full spec definitions.
+The current runtime baseline exposes:
+
+- `GET /livez` on both public and private ports without authentication
+- `/api/v1/system` diagnostics routes on both public and private ports through the shared subsystem/system-routes module
+
+Refer to `docs/openapi.yaml` for the checked-in contract baseline. Mango-facing `/api/v1/mdu/*` business APIs should be documented as they are implemented.
 
 ---
 
 ## 5. Background Routines & Concurrency
 
-Detail any background tickers, Kafka consumer group listeners, or async jobs run by this service.
+The service may run:
+
+- database startup migration checks
+- service discovery publisher lifecycle
+- service RPC / OWSEC client initialization
+- HTTP listener goroutines for public and private TLS servers
 
 ---
 
@@ -63,6 +60,7 @@ Document all custom errors returned by the service under the `apperror` codes.
 
 | Code Name | HTTP Status | Description |
 |---|---|---|
-| `CodeNotFound` | 404 | The requested item ID was not found in the database. |
-| `CodeInvalidInput` | 400 | Request body failed structural validation. |
-| `CodeInternal` | 500 | Database connection pool or filesystem failure. |
+| `CodeUnauthorized` | 401 | Authentication credentials are missing or invalid. |
+| `CodeForbidden` | 403 | The caller is authenticated but not allowed to perform the operation. |
+| `CodeInvalidInput` | 400 | Request payload or command validation failed. |
+| `CodeInternal` | 500 | Runtime startup, dependency, or internal execution failure occurred. |

@@ -9,8 +9,6 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
 	"github.com/routerarchitects/mango-mdu-service/internal/db"
 	apphttp "github.com/routerarchitects/mango-mdu-service/internal/http"
-	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
-	"github.com/routerarchitects/mango-mdu-service/internal/services"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
 	"github.com/routerarchitects/ow-common-mods/servicerpc"
@@ -90,11 +88,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		rootLog.Info("service RPC client factory and token validation are disabled via configuration")
 	}
 
-	// 5. Instantiate business services and handlers
-	itemSvc := services.NewItemService(database)
-	itemHandler := handlers.NewItemHandler(itemSvc)
-
-	// 6. Assemble Fiber HTTP apps module
+	// 5. Assemble Fiber HTTP apps module
 	publicAuthConfig := auth.PublicAuthConfig{}
 	privateAuthConfig := auth.InternalAPIKeyConfig{
 		ExpectedAPIKey: cfg.Discovery.InstanceKey,
@@ -104,7 +98,6 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		ServerLogger:      logger.Subsystem("server"),
 		ServerConfig:      cfg.Server,
 		SubsystemConfig:   cfg.Subsystem.Config,
-		ItemHandler:       itemHandler,
 		PublicAuthConfig:  publicAuthConfig,
 		PrivateAuthConfig: privateAuthConfig,
 		TokenValidator:    tokenValidator,
