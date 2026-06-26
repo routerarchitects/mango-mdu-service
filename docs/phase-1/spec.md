@@ -38,7 +38,6 @@ Phase 1 includes:
 - service-to-service downstream calls using internal service credentials
 - forwarding user bearer context to PROV using `x-authorization` where required
 - foundational PROV-backed APIs and workflows for:
-  - users
   - operators
   - entities
   - venues
@@ -163,7 +162,6 @@ The main Phase 1 API families are:
 
 - `GET /api/v1/mdu/me`
 - `GET /api/v1/mdu/session`
-- `/api/v1/mdu/users/*`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`
 - `/api/v1/mdu/venues/*`
@@ -180,12 +178,6 @@ The Phase 1 bootstrap APIs are view/bootstrap endpoints only. They do not mean M
 ## PROV-backed Phase 1 Functionality
 
 Phase 1 is not just a thin API shell. It must use PROV for the foundational business workflows listed in scope.
-
-### Users
-
-Phase 1 user APIs shall be MDU-facing APIs backed by PROV-owned user truth.
-
-MDU may shape the contract, but user truth remains in PROV.
 
 ### Operators
 
@@ -234,7 +226,7 @@ The master requirements identify the following current known PROV route families
 - `/managementPolicy/{uuid}`
 - `/managementRole`
 - `/managementRole/{id}`
-- PROV-owned user/customer routes as required by the implementation baseline
+- PROV-owned customer routes as required by the implementation baseline
 
 These are downstream route families MDU is expected to use for Phase 1 foundation work where applicable.
 
@@ -481,4 +473,4 @@ Phase 1 is complete only when:
 
 Phase 1 is the **foundation release** of MDU Service.
 
-It makes MDU the authenticated orchestration entry point for Mango operator workflows, with real PROV-backed foundational APIs, while keeping OWSEC and PROV as the systems that continue to own authentication, hierarchy, users, customers, and RBAC truth.
+It makes MDU the authenticated orchestration entry point for Mango operator workflows, with real PROV-backed foundational APIs, while keeping OWSEC and PROV as the systems that continue to own authentication, hierarchy, customers, and RBAC truth.

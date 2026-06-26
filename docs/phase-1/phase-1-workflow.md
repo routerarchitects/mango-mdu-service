@@ -41,7 +41,6 @@ Phase 1 includes the following Mango-facing API families:
 
 - `GET /api/v1/mdu/me`
 - `GET /api/v1/mdu/session`
-- `/api/v1/mdu/users/*`
 - `/api/v1/mdu/operators/*`
 - `/api/v1/mdu/entities/*`
 - `/api/v1/mdu/venues/*`
@@ -75,7 +74,7 @@ The master requirements identify the following current known PROV route families
 - `/managementPolicy/{uuid}`
 - `/managementRole`
 - `/managementRole/{id}`
-- PROV-owned user/customer routes as required by the implementation baseline
+- PROV-owned customer routes as required by the implementation baseline
 
 MDU uses these as downstream sources where the Phase 1 Mango-facing workflow requires them.
 
@@ -153,7 +152,7 @@ Once the token is valid, MDU determines which Phase 1 workflow is being executed
 - hierarchy/entity view
 - venue view
 - role/policy view
-- user/customer workflow
+- customer workflow
 - access-summary style view
 
 ## Step 5 — MDU calls PROV where domain truth is required
@@ -170,9 +169,9 @@ PROV remains responsible for:
 
 - scope decisions
 - RBAC decisions
-- user/customer access
+- customer access
 - hierarchy visibility
-- source-of-truth data for users, operators, entities, venues, roles, policies, and customers
+- source-of-truth data for operators, entities, venues, roles, policies, and customers
 
 ## Step 7 — MDU normalizes response
 
@@ -249,7 +248,6 @@ This is the common flow for Phase 1 read endpoints such as:
 - operators
 - entities
 - venues
-- users
 - customers
 - policies
 - roles
@@ -320,7 +318,7 @@ Some Phase 1 APIs may look like simple reads, but they are still authorization-s
 - allowed operators
 - allowed entities
 - allowed venues
-- allowed users/customers
+- allowed customers
 - allowed policies/roles
 - allowed hierarchy scope
 
