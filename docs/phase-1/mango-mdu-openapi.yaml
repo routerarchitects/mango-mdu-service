@@ -1,0 +1,1089 @@
+openapi: 3.0.3
+info:
+  title: Mango MDU Service API
+  version: 1.0.0
+  description: |
+    Northbound API exposed by MDU for Phase 1 workflows.
+
+    This contract defines the API consumed by northbound clients such as the MDU UI.
+    It intentionally normalizes downstream platform behavior into stable MDU-owned resources.
+
+    Phase 1 integrations:
+    - OWSEC for authentication and user lifecycle outside this contract
+    - PROV for entities, venues, management roles, management policies, and effective scope resolution
+    - Billing Service for plans, billing accounts, visible plan assignment, and subscriptions
+
+    Phase 1 scope:
+    - session and normalized access context
+    - hierarchy read/write for entity and venue resources
+    - user scope assignment and scope lookup
+    - minimal billing façade for Phase 1 account and plan workflows
+
+    Explicit non-goal:
+    - user CRUD is handled directly by OWSEC and is not exposed by MDU in this API
+
+servers:
+  - url: /api/v1
+    description: Relative API base path
+
+tags:
+  - name: Session
+  - name: Hierarchy
+  - name: Entities
+  - name: Venues
+  - name: Users
+  - name: Billing
+
+security:
+  - bearerAuth: []
+
+paths:
+  /mdu/me:
+    get:
+      tags: [Session]
+      summary: Get active session and effective access context
+      description: |
+        Returns the authenticated caller and normalized effective access context.
+        Scope assignments are derived from downstream role and policy bindings.
+      operationId: getMe
+      responses:
+        '200':
+          description: Active session and normalized access context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionContext'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/hierarchy/tree:
+    get:
+      tags: [Hierarchy]
+      summary: Get visible hierarchy tree
+      description: |
+        Returns the hierarchy visible to the caller.
+        Phase 1 normalizes entity and venue resources into a single northbound tree.
+      operationId: getHierarchyTree
+      parameters:
+        - $ref: '#/components/parameters/ScopeEntityId'
+      responses:
+        '200':
+          description: Hierarchy tree
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HierarchyTreeResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/entities:
+    get:
+      tags: [Entities]
+      summary: List entities visible to the caller
+      description: Returns normalized entity resources filtered to the caller's effective scope.
+      operationId: listEntities
+      parameters:
+        - $ref: '#/components/parameters/ParentEntityId'
+      responses:
+        '200':
+          description: Entity list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityListResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    post:
+      tags: [Entities]
+      summary: Create an entity
+      description: Creates a new Phase 1 entity resource.
+      operationId: createEntity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntityRequest'
+      responses:
+        '201':
+          description: Entity created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/entities/{entityId}:
+    get:
+      tags: [Entities]
+      summary: Get entity detail
+      operationId: getEntity
+      parameters:
+        - $ref: '#/components/parameters/EntityIdPath'
+      responses:
+        '200':
+          description: Entity detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    patch:
+      tags: [Entities]
+      summary: Update an entity
+      operationId: updateEntity
+      parameters:
+        - $ref: '#/components/parameters/EntityIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntityRequest'
+      responses:
+        '200':
+          description: Entity updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    delete:
+      tags: [Entities]
+      summary: Delete an entity
+      operationId: deleteEntity
+      parameters:
+        - $ref: '#/components/parameters/EntityIdPath'
+      responses:
+        '204':
+          description: Entity deleted
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/entities/{entityId}/venues:
+    get:
+      tags: [Venues]
+      summary: List venues under an entity
+      operationId: listEntityVenues
+      parameters:
+        - $ref: '#/components/parameters/EntityIdPath'
+        - $ref: '#/components/parameters/ParentVenueId'
+      responses:
+        '200':
+          description: Venue list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueListResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    post:
+      tags: [Venues]
+      summary: Create venue under an entity
+      operationId: createVenue
+      parameters:
+        - $ref: '#/components/parameters/EntityIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVenueRequest'
+      responses:
+        '201':
+          description: Venue created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueDetail'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/venues/{venueId}:
+    get:
+      tags: [Venues]
+      summary: Get venue detail
+      operationId: getVenue
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      responses:
+        '200':
+          description: Venue detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueDetail'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    patch:
+      tags: [Venues]
+      summary: Update a venue
+      operationId: updateVenue
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVenueRequest'
+      responses:
+        '200':
+          description: Venue updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueDetail'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    delete:
+      tags: [Venues]
+      summary: Delete a venue
+      operationId: deleteVenue
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      responses:
+        '204':
+          description: Venue deleted
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/users/{userId}/entities:
+    get:
+      tags: [Users]
+      summary: Get effective scoped assignments for a user
+      description: Returns the target user's effective scoped assignments as normalized MDU resources.
+      operationId: getUserAssignments
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: User scope assignments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAssignmentsResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+    post:
+      tags: [Users]
+      summary: Assign a user to an entity or venue scope
+      description: Creates or resolves the scoped access binding for the target user.
+      operationId: assignUserToScope
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserAssignmentRequest'
+      responses:
+        '201':
+          description: Assignment created or resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/users/{userId}/entities/{entityId}:
+    delete:
+      tags: [Users]
+      summary: Remove a user's entity scope assignment
+      description: Removes the scoped access binding for the target user and entity.
+      operationId: deleteUserEntityAssignment
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/EntityIdPath'
+      responses:
+        '204':
+          description: Assignment removed
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/billing/overview:
+    get:
+      tags: [Billing]
+      summary: Get billing overview for an entity scope
+      description: Returns the normalized Phase 1 billing overview for the target entity scope.
+      operationId: getBillingOverview
+      parameters:
+        - $ref: '#/components/parameters/EntityIdQueryRequired'
+      responses:
+        '200':
+          description: Billing overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingOverview'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/billing/plans/available:
+    get:
+      tags: [Billing]
+      summary: Get available billing plans for an entity scope
+      operationId: getAvailableBillingPlans
+      parameters:
+        - $ref: '#/components/parameters/EntityIdQueryRequired'
+      responses:
+        '200':
+          description: Available billing plans
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableBillingPlansResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+  /mdu/billing/subscriptions/select:
+    post:
+      tags: [Billing]
+      summary: Select or change the active billing plan
+      description: Selects or changes the active billing plan for the target entity scope.
+      operationId: selectBillingPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectBillingPlanRequest'
+      responses:
+        '200':
+          description: Billing plan selection result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanSelectionResult'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '503':
+          $ref: '#/components/responses/BackendUnavailableError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    EntityIdPath:
+      name: entityId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    VenueIdPath:
+      name: venueId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    UserIdPath:
+      name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    ScopeEntityId:
+      name: scopeEntityId
+      in: query
+      required: false
+      description: Optional entity scope anchor for tree shaping
+      schema:
+        $ref: '#/components/schemas/Id'
+    ParentEntityId:
+      name: parentEntityId
+      in: query
+      required: false
+      description: Optional parent entity filter
+      schema:
+        $ref: '#/components/schemas/Id'
+    ParentVenueId:
+      name: parentVenueId
+      in: query
+      required: false
+      description: Optional parent venue filter
+      schema:
+        $ref: '#/components/schemas/Id'
+    EntityIdQueryRequired:
+      name: entityId
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+
+  responses:
+    BadRequestError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    UnauthorizedError:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ForbiddenError:
+      description: Caller is not allowed to perform this action in the resolved scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ConflictError:
+      description: Current state conflicts with the requested operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    BackendUnavailableError:
+      description: One or more required downstream services are unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    Id:
+      type: string
+      description: UUID or service-owned opaque identifier
+
+    IsoDateTime:
+      type: string
+      format: date-time
+
+    HierarchyNodeType:
+      type: string
+      enum: [operator, entity, venue]
+
+    AssignmentScopeType:
+      type: string
+      enum: [entity, venue]
+
+    RoleKey:
+      type: string
+      enum: [root, admin, csr, installer, noc, accounting, system]
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          examples: [validation_error, no_permission, backend_unavailable, conflict]
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ScopePathItem:
+      type: object
+      required: [id, type, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        type:
+          $ref: '#/components/schemas/HierarchyNodeType'
+        name:
+          type: string
+
+    RbacDecision:
+      type: object
+      required: [allowed, mode]
+      properties:
+        allowed:
+          type: boolean
+        mode:
+          type: string
+          enum: [hidden, read_only, interactive]
+        reason:
+          type: string
+
+    EffectivePermissionSet:
+      type: object
+      properties:
+        hierarchy:
+          $ref: '#/components/schemas/RbacDecision'
+        users:
+          $ref: '#/components/schemas/RbacDecision'
+        billing:
+          $ref: '#/components/schemas/RbacDecision'
+        configurations:
+          $ref: '#/components/schemas/RbacDecision'
+        devices:
+          $ref: '#/components/schemas/RbacDecision'
+
+    UserSummary:
+      type: object
+      required: [id]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/RoleKey'
+        status:
+          type: string
+        lastLoginAt:
+          allOf:
+            - $ref: '#/components/schemas/IsoDateTime'
+          nullable: true
+
+    SessionAssignment:
+      type: object
+      required: [assignmentId, scopeType, scopeId, scopeName, path, role]
+      properties:
+        assignmentId:
+          $ref: '#/components/schemas/Id'
+        scopeType:
+          $ref: '#/components/schemas/AssignmentScopeType'
+        scopeId:
+          $ref: '#/components/schemas/Id'
+        scopeName:
+          type: string
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopePathItem'
+        role:
+          $ref: '#/components/schemas/RoleKey'
+        managementRoleId:
+          $ref: '#/components/schemas/Id'
+        managementPolicyId:
+          $ref: '#/components/schemas/Id'
+
+    SessionContext:
+      type: object
+      required: [user, assignments, permissions]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        activeScope:
+          allOf:
+            - $ref: '#/components/schemas/ScopePathItem'
+          nullable: true
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionAssignment'
+        permissions:
+          $ref: '#/components/schemas/EffectivePermissionSet'
+
+    HierarchyNodeSummary:
+      type: object
+      properties:
+        entityCount:
+          type: integer
+        venueCount:
+          type: integer
+        userCount:
+          type: integer
+        deviceCount:
+          type: integer
+
+    HierarchyNode:
+      type: object
+      required: [id, type, name, parentId, path, selectable, hasChildren]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        type:
+          $ref: '#/components/schemas/HierarchyNodeType'
+        name:
+          type: string
+        parentId:
+          allOf:
+            - $ref: '#/components/schemas/Id'
+          nullable: true
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopePathItem'
+        selectable:
+          type: boolean
+        hasChildren:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/HierarchyNode'
+        summary:
+          $ref: '#/components/schemas/HierarchyNodeSummary'
+
+    HierarchyTreeResponse:
+      type: object
+      required: [roots]
+      properties:
+        roots:
+          type: array
+          items:
+            $ref: '#/components/schemas/HierarchyNode'
+
+    EntitySummary:
+      type: object
+      required: [id, name, type, path]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        parentId:
+          allOf:
+            - $ref: '#/components/schemas/Id'
+          nullable: true
+        type:
+          type: string
+          enum: [normal, subscriber]
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopePathItem'
+        venueCount:
+          type: integer
+        userCount:
+          type: integer
+        deviceCount:
+          type: integer
+
+    EntityBillingSummary:
+      type: object
+      properties:
+        tenantId:
+          type: string
+        billingStatus:
+          type: string
+          enum: [disabled, active, suspended, cancelled]
+        currentPlanCode:
+          type: string
+          nullable: true
+        currentPlanName:
+          type: string
+          nullable: true
+        subscriptionStatus:
+          type: string
+          nullable: true
+          enum: [draft, active, canceled, terminated, pending]
+
+    EntityDetail:
+      allOf:
+        - $ref: '#/components/schemas/EntitySummary'
+        - type: object
+          properties:
+            description:
+              type: string
+            operatorId:
+              $ref: '#/components/schemas/Id'
+            managementPolicyId:
+              $ref: '#/components/schemas/Id'
+            managementRoleIds:
+              type: array
+              items:
+                $ref: '#/components/schemas/Id'
+            createdAt:
+              $ref: '#/components/schemas/IsoDateTime'
+            updatedAt:
+              $ref: '#/components/schemas/IsoDateTime'
+            billing:
+              $ref: '#/components/schemas/EntityBillingSummary'
+
+    EntityListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntitySummary'
+
+    EnsureBillingAccountInput:
+      type: object
+      properties:
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+          format: email
+        billingCurrency:
+          type: string
+        billingTimezone:
+          type: string
+
+    CreateEntityRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        parentEntityId:
+          $ref: '#/components/schemas/Id'
+        type:
+          type: string
+          enum: [normal, subscriber]
+          default: normal
+        ensureBillingAccount:
+          type: boolean
+          default: false
+        billing:
+          $ref: '#/components/schemas/EnsureBillingAccountInput'
+
+    UpdateEntityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    VenueSummary:
+      type: object
+      required: [id, name, entityId, path]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        entityId:
+          $ref: '#/components/schemas/Id'
+        parentVenueId:
+          allOf:
+            - $ref: '#/components/schemas/Id'
+          nullable: true
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopePathItem'
+        deviceCount:
+          type: integer
+
+    VenueDetail:
+      allOf:
+        - $ref: '#/components/schemas/VenueSummary'
+        - type: object
+          properties:
+            description:
+              type: string
+            managementPolicyId:
+              $ref: '#/components/schemas/Id'
+            managementRoleIds:
+              type: array
+              items:
+                $ref: '#/components/schemas/Id'
+            createdAt:
+              $ref: '#/components/schemas/IsoDateTime'
+            updatedAt:
+              $ref: '#/components/schemas/IsoDateTime'
+
+    VenueListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VenueSummary'
+
+    CreateVenueRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        parentVenueId:
+          $ref: '#/components/schemas/Id'
+
+    UpdateVenueRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    UserAssignment:
+      type: object
+      required: [assignmentId, scopeType, scopeId, scopeName, role, path]
+      properties:
+        assignmentId:
+          $ref: '#/components/schemas/Id'
+        scopeType:
+          $ref: '#/components/schemas/AssignmentScopeType'
+        scopeId:
+          $ref: '#/components/schemas/Id'
+        scopeName:
+          type: string
+        role:
+          $ref: '#/components/schemas/RoleKey'
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopePathItem'
+        managementRoleId:
+          $ref: '#/components/schemas/Id'
+        managementPolicyId:
+          $ref: '#/components/schemas/Id'
+        createdAt:
+          $ref: '#/components/schemas/IsoDateTime'
+
+    UserAssignmentsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserAssignment'
+
+    CreateUserAssignmentRequest:
+      type: object
+      required: [scopeType, scopeId, role]
+      properties:
+        scopeType:
+          $ref: '#/components/schemas/AssignmentScopeType'
+        scopeId:
+          $ref: '#/components/schemas/Id'
+        role:
+          $ref: '#/components/schemas/RoleKey'
+
+    BillingPlanCharge:
+      type: object
+      required: [deviceType, unitAmountCents]
+      properties:
+        deviceType:
+          type: string
+        unitAmountCents:
+          type: integer
+
+    BillingPlanSummary:
+      type: object
+      required: [planCode, planName, planType, billingCycle, billingCurrency, enabled, charges]
+      properties:
+        planCode:
+          type: string
+        planName:
+          type: string
+        planType:
+          type: string
+        billingCycle:
+          type: string
+        billingCurrency:
+          type: string
+        enabled:
+          type: boolean
+        charges:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingPlanCharge'
+
+    BillingAccountSummary:
+      type: object
+      required: [tenantId, entityId, billingStatus]
+      properties:
+        tenantId:
+          type: string
+        entityId:
+          $ref: '#/components/schemas/Id'
+        billingStatus:
+          type: string
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+          format: email
+        billingCurrency:
+          type: string
+        billingTimezone:
+          type: string
+
+    BillingSubscriptionSummary:
+      type: object
+      nullable: true
+      properties:
+        subscriptionVersion:
+          type: integer
+        currentPlanCode:
+          type: string
+        currentPlanName:
+          type: string
+        subscriptionStatus:
+          type: string
+        startsAt:
+          $ref: '#/components/schemas/IsoDateTime'
+        endsAt:
+          allOf:
+            - $ref: '#/components/schemas/IsoDateTime'
+          nullable: true
+
+    BillingOverview:
+      type: object
+      required: [account, assignedPlans, availablePlans, currentSubscription]
+      properties:
+        account:
+          $ref: '#/components/schemas/BillingAccountSummary'
+        assignedPlans:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingPlanSummary'
+        availablePlans:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingPlanSummary'
+        currentSubscription:
+          $ref: '#/components/schemas/BillingSubscriptionSummary'
+
+    AvailableBillingPlansResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingPlanSummary'
+
+    SelectBillingPlanRequest:
+      type: object
+      required: [entityId, planCode]
+      properties:
+        entityId:
+          $ref: '#/components/schemas/Id'
+        planCode:
+          type: string
+
+    PlanSelectionResult:
+      oneOf:
+        - type: object
+          required: [status, subscription]
+          properties:
+            status:
+              type: string
+              enum: [success]
+            subscription:
+              $ref: '#/components/schemas/BillingSubscriptionSummary'
+        - type: object
+          required: [status, error]
+          properties:
+            status:
+              type: string
+              enum: [conflict]
+            error:
+              $ref: '#/components/schemas/ApiError'
