@@ -37,46 +37,30 @@ So Phase 1 is already a real integration phase with **OWSEC + PROV**.
 
 ## Main Phase 1 API Surface
 
-Phase 1 includes the following Mango-facing API families:
+Phase 1 includes the following Mango-facing API families defined in `mango-mdu-openapi.yaml`:
 
-- `GET /api/v1/mdu/me` — OWSEC is the authoritative owner for user identity; MDU calls PROV to fetch the authenticated user's Mango bootstrap context (operator scope, customer scope, roles, hierarchy visibility) and composes the normalized `/me` response
-- `GET /api/v1/mdu/session`
-- `/api/v1/mdu/operators/*`
-- `/api/v1/mdu/entities/*`
-- `/api/v1/mdu/venues/*`
-- `/api/v1/mdu/policies/*`
-- `/api/v1/mdu/roles/*`
-- `/api/v1/mdu/customers/*`
+- **Session Context:** `GET /mdu/me`
+- **Hierarchy Tree:** `GET /mdu/hierarchy/tree`
+- **Entities Management:** `GET /mdu/entities`, `POST /mdu/entities`, `GET /mdu/entities/{entityId}`, `PATCH /mdu/entities/{entityId}`, `DELETE /mdu/entities/{entityId}`
+- **Venues Management:** `GET /mdu/entities/{entityId}/venues`, `POST /mdu/entities/{entityId}/venues`, `GET /mdu/venues/{venueId}`, `PATCH /mdu/venues/{venueId}`, `DELETE /mdu/venues/{venueId}`
+- **User Scoped Assignments:** `GET /mdu/users/{userId}/entities`, `POST /mdu/users/{userId}/entities`, `DELETE /mdu/users/{userId}/entities/{entityId}`
 
-These API families are indicative workflow groupings for Phase 1. They are not a strict one-to-one route inventory and do not require MDU to mirror downstream route structure exactly.
-
-In the current runtime baseline, the checked-in support routes are still limited to:
+In the current runtime baseline, the checked-in support routes are:
 
 - `GET /livez`
 - `/api/v1/system`
 
-Those support routes are outside the Mango-facing business workflow families described in this document. The `/api/v1/mdu/*` sections below describe the intended Phase 1 business workflow model to be implemented.
+The `/mdu/*` sections below describe the intended Phase 1 business workflow model to be implemented.
 
 ---
 
 ## Known PROV Route Families Used in Phase 1
 
-The master requirements identify the following current known PROV route families relevant to the Phase 1 foundation baseline:
+MDU orchestrates downstream calls using these key PROV route families:
 
-- `/operator`
-- `/operator/{uuid}`
-- `/entity`
-- `/entity/{uuid}`
-- `/entity?setTree=true`
-- `/venue`
-- `/venue/{uuid}`
-- `/managementPolicy`
-- `/managementPolicy/{uuid}`
-- `/managementRole`
-- `/managementRole/{id}`
-- PROV-owned customer routes as required by the implementation baseline
-
-MDU uses these as downstream sources where the Phase 1 Mango-facing workflow requires them.
+- **Entity Paths:** `GET /entity`, `POST /entity`, `GET /entity/{uuid}`, `PUT /entity/{uuid}`, `DELETE /entity/{uuid}`
+- **Venue Paths:** `GET /venue`, `POST /venue`, `GET /venue/{uuid}`, `PUT /venue/{uuid}`, `DELETE /venue/{uuid}`
+- **RBAC & Delegation Paths:** `GET /managementPolicy`, `GET /managementRole` (and their respective /{uuid} detail lookups)
 
 ---
 
@@ -145,15 +129,14 @@ If validation fails, MDU returns a normalized auth failure and does not continue
 
 ## Step 4 — MDU determines target workflow
 
-Once the token is valid, MDU determines which Phase 1 workflow is being executed, such as:
+Once the token is valid, MDU determines which Phase 1 workflow is being executed:
 
-- bootstrap view
-- operator lookup
-- hierarchy/entity view
-- venue view
-- role/policy view
-- customer workflow
-- access-summary style view
+- Session bootstrap (`/mdu/me`)
+- Hierarchy tree (`/mdu/hierarchy/tree`)
+- Entities management
+- Venues management
+- User scoped assignments
+- Billing workflows
 
 ## Step 5 — MDU calls PROV where domain truth is required
 
@@ -169,9 +152,8 @@ PROV remains responsible for:
 
 - scope decisions
 - RBAC decisions
-- customer access
 - hierarchy visibility
-- source-of-truth data for operators, entities, venues, roles, policies, and customers
+- source-of-truth data for entities, venues, and user assignments
 
 OWSEC is the authoritative owner for user identity (user CRUD, login, token issuance). PROV provides the user's Mango operational context: operator scope, customer scope, roles, policies, and hierarchy visibility.
 
@@ -192,221 +174,239 @@ The caller receives a normalized Phase 1 response.
 
 ---
 
-# 2. Bootstrap Workflow — `GET /api/v1/mdu/me`
+# 2. Bootstrap Workflow — `GET /mdu/me`
 
 ## Goal
 
-Return the normalized Mango-facing caller context for the authenticated user, composed from OWSEC-validated identity and PROV-fetched operational context.
+Return the normalized caller context for the authenticated user, composed from OWSEC-validated identity and PROV-fetched operational context.
 
-## Ownership Model
+## Step-by-Step Runtime Workflow
 
-- **OWSEC** owns user CRUD, login, token issuance, and user account identity. The bearer token from OWSEC is the source of the caller's identity claim.
-- **PROV** provides the logged-in user's operational context for Mango: operator scope, customer scope, roles, policies, hierarchy visibility, and dashboard bootstrap data.
-- **MDU** composes the final `/me` response from the OWSEC-validated identity plus the PROV-fetched Mango context.
+### Step 1 — Inbound API Request
+A client sends a request to the MDU bootstrap endpoint:
+`GET /mdu/me`
+The request carries the active OWSEC bearer token:
+`Authorization: Bearer <owsec-token>`
 
-## Workflow
+### Step 2 — MDU validates request and Auth Token
+1. Validates the request format and headers.
+2. Validates the bearer token against OWSEC to ensure it is active. If validation fails, MDU returns a normalized auth error (e.g., `401 Unauthorized`).
 
-1. UI calls `GET /api/v1/mdu/me`
-2. MDU validates the bearer token through OWSEC — this confirms user identity
-3. MDU calls PROV with service auth plus forwarded user token to fetch the caller's Mango operational context (operator scope, customer scope, roles, policies, hierarchy visibility)
-4. MDU composes the normalized `/me` response from the confirmed OWSEC identity and the PROV-returned context
-5. MDU returns the Mango-facing result
+### Step 3 — MDU fetches operational context from PROV
+Once authorized, MDU forwards the caller's token (`x-authorization: Bearer <owsec-token>`) and its service credentials (`x-api`) to PROV:
+1. **Fetch User Details:** MDU requests the user profile and role details.
+2. **Fetch User Assignments:** MDU requests the scope permissions, role mappings, and policy bounds bound to the user.
+3. **Fetch Visible Entities:** MDU retrieves the list of entities and venues that the user's role has permission to access.
 
-## Important Rule
+### Step 4 — MDU composes SessionContext Response Body
+MDU builds the response conforming to the `SessionContext` schema in `mango-mdu-openapi.yaml`:
+1. **User Summary (`user`):** Populates the caller's user details including `id`, `name`, `email`, `role`, `status`, and `lastLoginAt`.
+2. **Active Scope (`activeScope`):** If the user is operating within a specific entity context, MDU sets this to a `ScopePathItem` (with `id`, `type`, and `name`). Otherwise, it returns `null`.
+3. **Session Assignments (`assignments`):** Merges the PROV-provided assignments into a list of `SessionAssignment` objects. For each assignment, it populates `assignmentId`, `scopeType` (`operator`, `entity`, `venue`), `scopeId`, `scopeName`, `role`, `managementRoleId`, `managementPolicyId`, and the ancestry `path` array.
+4. **Permissions (`permissions`):** Evaluates the user's roles and policies against the requested scope to return an `EffectivePermissionSet`. This contains `RbacDecision` objects (`allowed: boolean`, `mode: hidden | read_only | interactive`) for each functional domain: `hierarchy`, `users`, `configurations`, and `devices`.
 
-This endpoint is a **view/bootstrap endpoint** only.
-
-It does **not**:
-
-- create login state
-- issue tokens
-- own session lifecycle
-
-OWSEC is the authoritative owner for user identity. PROV is the source of the user's Mango operational context. MDU does not persist either.
+### Step 5 — MDU returns SessionContext response
+MDU returns the composed `SessionContext` payload with a `200 OK` status.
 
 ---
 
-# 3. Bootstrap Workflow — `GET /api/v1/mdu/session`
+# 3. Read Workflow — PROV-backed List or Detail APIs
+
+This section describes the workflow for all read endpoints exposed by MDU that fetch entity and venue data from PROV:
+- **Entities Read:** `GET /mdu/entities` and `GET /mdu/entities/{entityId}`
+- **Venues Read:** `GET /mdu/entities/{entityId}/venues` and `GET /mdu/venues/{venueId}`
+
+## Step-by-Step Runtime Workflow
+
+### Step 1 — Inbound API Request
+A client sends a read request to one of the MDU endpoints (e.g., `GET /mdu/entities` with optional `parentEntityId` query filter, or `GET /mdu/entities/{entityId}`).
+The request carries the active OWSEC bearer token in the headers:
+`Authorization: Bearer <owsec-token>`
+
+### Step 2 — MDU validates request and Auth Token
+1. Validates the request format, path UUID parameters, and query filters.
+2. Validates the bearer token against OWSEC. If validation fails, MDU returns a normalized auth error (e.g., `401 Unauthorized`).
+
+### Step 3 — MDU delegates call to PROV
+MDU forwards the query to PROV, appending the service credential (`x-api`) and user context (`x-authorization: Bearer <owsec-token>`):
+- For `GET /mdu/entities`: MDU queries PROV's `/entity` endpoint (passing filters).
+- For `GET /mdu/entities/{entityId}`: MDU queries PROV's `/entity/{uuid}`.
+- For `GET /mdu/entities/{entityId}/venues`: MDU queries PROV's `/venue` filtered by entity.
+- For `GET /mdu/venues/{venueId}`: MDU queries PROV's `/venue/{uuid}`.
+
+### Step 4 — MDU maps responses to OpenAPI schemas
+MDU shapes the response to match the northbound contract:
+1. **Entities List response (`EntityListResponse`):** Returns `items: array of EntitySummary`, where each item includes `id`, `name`, `parentId`, `type` (`normal` | `subscriber`), `path` (ancestry path array), `venueCount`, `userCount`, and `deviceCount`.
+2. **Entity Detail response (`EntityDetail`):** Inherits from `EntitySummary` and adds `description`, `operatorId`, `managementPolicyId`, `managementRoleIds`, `createdAt`, and `updatedAt`.
+3. **Venues List response (`VenueListResponse`):** Returns `items: array of VenueSummary`, where each item includes `id`, `name`, `entityId`, `parentVenueId`, `path` (ancestry path array), and `deviceCount`.
+4. **Venue Detail response (`VenueDetail`):** Inherits from `VenueSummary` and adds `description`, `managementPolicyId`, `managementRoleIds`, `createdAt`, and `updatedAt`.
+
+*Note: In all responses, `deviceCount` is returned as `0` since live device runtime data is out of scope for Phase 1.*
+
+### Step 5 — MDU returns shaped response
+MDU returns the JSON payload with a `200 OK` status.
+
+---
+
+# 4. Hierarchy Workflow — Entities, Venues, and Tree-Oriented Reads
+
+Phase 1 includes foundational hierarchy-related navigation and node details backed by PROV.
 
 ## Goal
 
-Return the token-backed bootstrap/session view for the authenticated caller.
+Allow MDU to expose the combined hierarchy tree and node overview data to northbound clients while keeping PROV as the authoritative owner of the hierarchy tree.
 
-## Workflow
+## Phase 1 Scope & Boundary Guardrails
 
-1. UI calls `GET /api/v1/mdu/session`
-2. MDU validates the bearer token through OWSEC
-3. MDU determines the caller bootstrap/session context
-4. If required, MDU uses PROV-backed domain context to complete the response
-5. MDU returns a normalized session/bootstrap payload
+- **In-Scope (Active):** Retrieval and structure of hierarchical nodes (Operator, Customer, Site, Building, Tower, Floor, Venue) and node summary metadata (Node Type, Scope Path, and child count metrics).
+- **Out-of-Scope (Deferred in Phase 1):** Topology data, device lists, and device configuration details. Since device runtime, topology computation, and configuration assignments live in OWGW (or are deferred to later phases), these properties are returned as empty, zero, or omitted fields in the backend response.
+
+## Step-by-Step Runtime Workflow
+
+### Step 1 — Inbound API Request
+A client sends a request to fetch the hierarchy tree:
+`GET /api/v1/mdu/hierarchy/tree` (or `/api/v1/mdu/entities` when querying child nodes).
+The request carries the active OWSEC bearer token in the headers:
+`Authorization: Bearer <owsec-token>`
+
+### Step 2 — MDU validates request and Auth Token
+MDU performs standard validation:
+1. Checks request parameters, correlation headers, and token presence.
+2. Validates the bearer token against OWSEC to ensure the session is active. If validation fails, MDU returns a normalized auth error (e.g., `401 Unauthorized`).
+
+### Step 3 — MDU orchestrates calls to downstream PROV APIs
+Once authorized, MDU calls PROV to retrieve the entities and venues using either of the following PROV API patterns depending on configuration/available endpoints:
+- **Option A (Tree-Capable Endpoint):**
+  Call PROV's tree-oriented endpoint:
+  `GET /api/v1/entity?getTree=true`
+- **Option B (List and Extended Info):**
+  Call PROV's bulk entity and inventory endpoints:
+  `GET /api/v1/entity?withExtendedInfo=true&offset=0&limit=500`
+- **Venue Enrichment:**
+  To build the complete hierarchy down to individual venues (such as *Venue Lounge*, *Venue Office*), MDU calls:
+  `GET /api/v1/venue` or fetches venues scoped to the retrieved entities.
+
+MDU authenticates as a trusted service to PROV using its service credential (`x-api`) and forwards the caller's JWT (`x-authorization: Bearer <owsec-token>`) so PROV can apply visibility, tenant scope, and RBAC rules.
+
+### Step 4 — MDU combines responses to build tree
+MDU processes and combines the data returned from downstream calls to build a list of `HierarchyNode` items, complying with the `HierarchyTreeResponse` schema defined in `mango-mdu-openapi.yaml`:
+1. **Combine Entities and Venues:** Merges downstream PROV entities and venues into a single unified set of hierarchy tree nodes.
+2. **Build parentId Links:** Maps each node to its respective parent (by resolving parent entity/venue UUIDs).
+3. **Populate Path Array:** Generates the required `path` array containing the ordered list of `ScopePathItem` ancestors from the root down to the parent of the current node (e.g., `[ {id: "uuid-1", type: "operator", name: "OpCo"}, {id: "uuid-2", type: "entity", name: "Customer West"} ]`).
+4. **Determine selectable and hasChildren:** Calculates boolean flags indicating whether the node can be selected by the current user and if it has child sub-entities or venues.
+5. **Populate Children Nested Tree:** Recursively nests child `HierarchyNode` objects under their parents.
+
+### Step 5 — MDU maps counts and enforces Phase 1 exclusions
+MDU calculates and populates the `HierarchyNodeSummary` for each node:
+- **In-Scope Counts:** `entityCount` and `venueCount` are computed by walking the combined tree. `userCount` is fetched/mapped from downstream.
+- **Phase 1 Boundary Exclusions:** Since live device runtime, configuration, and topology details live in OWGW or are deferred to later phases, the `deviceCount` is returned as `0` in the summary block.
+
+### Step 6 — MDU returns shaped Hierarchy Tree response
+MDU returns a JSON payload matching the `HierarchyTreeResponse` schema, containing a `roots` array of root-level `HierarchyNode` objects.
 
 ## Important Rule
 
-This endpoint does **not** mean MDU owns browser session issuance.
-
-It is only a Mango-facing bootstrap/session-context view built on top of authenticated user context.
+Phase 1 does **not** create a local hierarchy source of truth inside MDU. All parent-child and venue associations remain owned by PROV.
 
 ---
 
-# 4. Read Workflow — PROV-backed List or Detail APIs
+# 5. Scope-constrained Read Workflow
 
-This is the common flow for Phase 1 read endpoints such as:
+All read operations are constrained by the user's resolved scope and delegation permissions. The caller must only be allowed to see:
+- Allowed entities (Operators, Customers, Sites, Buildings, etc.)
+- Allowed venues
+- Assigned users, roles, and policies within their scope
 
-- operators
-- entities
-- venues
-- customers
-- policies
-- roles
+## Step-by-Step Enforcement Workflow
 
-## Example Shape
+1. **Inbound Request:** Client requests a resource or a list.
+2. **Auth Token Check:** MDU validates the user context via OWSEC.
+3. **Context Delegation:** MDU forwards the user context to PROV using `x-authorization`.
+4. **Visibility Assessment:** PROV evaluates:
+   - Resource-level ownership and association.
+   - Scope-level boundaries (the calling user's tenant root entity).
+   - Role-based capabilities.
+5. **Shaped Results:** MDU processes the response:
+   - If authorized, MDU returns the list or resource detail shaped to the MDU schema.
+   - If unauthorized, MDU returns a normalized `403 Forbidden` or `404 Not Found` response.
 
-The exact MDU route may vary, but the read workflow is the same.
-
-## Workflow
-
-1. UI calls an MDU read endpoint
-2. MDU validates authentication through OWSEC
-3. MDU validates request parameters
-4. MDU decides which PROV route family is needed
-5. MDU calls PROV with:
-   - `x-api`
-   - `x-authorization`
-   - request/correlation IDs
-6. PROV evaluates caller access and fetches domain truth
-7. PROV returns the result or an access failure
-8. MDU maps the response into its Mango-facing contract
-9. MDU returns the final response
-
-## Examples of downstream mapping
-
-Examples include:
-
-- `/api/v1/mdu/operators/*` using PROV `/operator` routes
-- `/api/v1/mdu/entities/*` using PROV `/entity` routes
-- `/api/v1/mdu/venues/*` using PROV `/venue` routes
-- `/api/v1/mdu/policies/*` using PROV `/managementPolicy` routes
-- `/api/v1/mdu/roles/*` using PROV `/managementRole` routes
-
-MDU may reshape or rename fields, but PROV remains the source of truth.
+MDU must enforce these scope boundaries at the API gateway/handler level and must not return out-of-scope records.
 
 ---
 
-# 5. Hierarchy Workflow — Entities and Tree-Oriented Reads
+# 6. Mutation Workflow — PROV-backed Create, Update, and Delete APIs
 
-Phase 1 includes foundational hierarchy-related workflows backed by PROV.
+MDU acts as an orchestrator for mutations on PROV-owned domains. The active mutations in Phase 1 are:
+- **Entities Mutation:** `POST /mdu/entities` (CreateEntityRequest), `PATCH /mdu/entities/{entityId}` (UpdateEntityRequest), `DELETE /mdu/entities/{entityId}`
+- **Venues Mutation:** `POST /mdu/entities/{entityId}/venues` (CreateVenueRequest), `PATCH /mdu/venues/{venueId}` (UpdateVenueRequest), `DELETE /mdu/venues/{venueId}`
+
+## Step-by-Step Runtime Workflow
+
+### Step 1 — Inbound mutation request
+A client sends a request to mutate a resource (e.g., `POST /mdu/entities` with a JSON payload in the body).
+The request carries the active OWSEC bearer token:
+`Authorization: Bearer <owsec-token>`
+
+### Step 2 — MDU validates request body and Auth Token
+1. Validates the request format, UUID path parameters, and required request body schemas (e.g., `CreateEntityRequest`, `UpdateEntityRequest`, or `CreateVenueRequest`).
+2. Validates the bearer token against OWSEC. If validation fails, MDU returns a normalized auth error (e.g., `401 Unauthorized`).
+
+### Step 3 — MDU forwards mutation request to PROV
+MDU constructs the downstream request to PROV, applying service credentials (`x-api`) and the user context (`x-authorization`):
+- **Create Entity:** MDU sends `POST /entity` to PROV.
+- **Update Entity:** MDU sends `PUT /entity/{uuid}` to PROV.
+- **Delete Entity:** MDU sends `DELETE /entity/{uuid}` to PROV.
+- **Create Venue:** MDU sends `POST /venue` to PROV.
+- **Update Venue:** MDU sends `PUT /venue/{uuid}` to PROV.
+- **Delete Venue:** MDU sends `DELETE /venue/{uuid}` to PROV.
+
+### Step 4 — PROV evaluates business rules and applies change
+PROV verifies that the caller has sufficient rights to perform the mutation under their tenant/operator scope. If allowed, PROV applies the mutation and returns the result.
+
+### Step 5 — MDU maps responses or errors
+MDU converts the response from PROV into the northbound MDU contract:
+- Creation responses return `201 Created` with `EntityDetail` or `VenueDetail`.
+- Update responses return `200 OK` with the updated detail schema.
+- Deletions return `204 No Content` upon success.
+- If PROV returns a validation or state conflict error (e.g., duplicate names), MDU translates it into a normalized MDU error (e.g., `400 Bad Request` or `409 Conflict`).
+
+### Step 6 — MDU returns response
+MDU returns the final response payload to the caller.
+
+---
+
+# 7. User Scope Assignments Workflow
+
+This workflow describes how northbound clients manage and query user assignments to operator, entity, or venue scopes.
 
 ## Goal
 
-Allow MDU to expose Mango-facing hierarchy/entity views while keeping PROV as the hierarchy owner.
+Retrieve, create, or remove access bindings (scope assignments) for users, keeping PROV as the source of truth for all role/policy bindings.
 
-## Workflow
+## Step-by-Step Runtime Workflow
 
-1. UI calls an entity or hierarchy-related MDU endpoint
-2. MDU validates the token through OWSEC
-3. MDU validates path/query inputs
-4. MDU calls the appropriate PROV entity route
-5. If tree structure is needed, MDU may use the PROV tree-capable entity route family such as `entity?setTree=true`
-6. PROV applies scope and visibility rules
-7. PROV returns authoritative hierarchy/entity data
-8. MDU shapes the hierarchy response for Mango-facing use
-9. MDU returns the normalized result
+### Step 1 — Querying Scoped Assignments
+1. A client calls `GET /mdu/users/{userId}/entities` carrying the caller's bearer token.
+2. MDU validates the request parameters and token against OWSEC.
+3. MDU calls PROV to fetch the target user's management role and policy bindings across all entities and venues.
+4. MDU normalizes these bindings into `UserAssignmentsResponse` containing the `items` array of `UserAssignment` objects.
+5. MDU returns the list with a `200 OK` status.
 
-## Important Rule
+### Step 2 — Assigning a User to a Scope
+1. A client calls `POST /mdu/users/{userId}/entities` with a `CreateUserAssignmentRequest` body containing `scopeType`, `scopeId`, and `role`.
+2. MDU validates the request body and token.
+3. MDU forwards the assignment request to PROV. PROV checks if the caller has permissions to delegate access, binds the user to the scope/role, and assigns any management policies.
+4. PROV returns the created binding. MDU maps it to a `UserAssignment` object and returns it with a `201 Created` status.
 
-Phase 1 does **not** create a local hierarchy source of truth inside MDU.
-
----
-
-# 6. Authorization-sensitive Read Workflow
-
-Some Phase 1 APIs may look like simple reads, but they are still authorization-sensitive because the caller should only see:
-
-- allowed operators
-- allowed entities
-- allowed venues
-- allowed customers
-- allowed policies/roles
-- allowed hierarchy scope
-
-## Workflow
-
-1. caller requests a resource or list
-2. MDU validates token via OWSEC
-3. MDU forwards user context to PROV
-4. PROV decides whether the caller has:
-   - resource-level access
-   - scope-level access
-   - action-level access
-   - role/profile-based entitlement
-5. MDU returns:
-   - normalized success response if authorized
-   - normalized forbidden/not-found style response if not authorized
-
-MDU must not rely on frontend hiding to enforce these rules.
+### Step 3 — Removing a Scoped Assignment
+1. A client calls `DELETE /mdu/users/{userId}/entities/{entityId}`.
+2. MDU validates parameters and forwards the request to PROV to unbind the user from the entity.
+3. PROV removes the role/policy assignment.
+4. MDU returns a `204 No Content` status.
 
 ---
 
-# 7. Optional Phase 1 Mutation Workflow — if approved for selected PROV-backed domains
-
-If a selected Phase 1 API includes an approved mutation on a PROV-owned domain object, MDU still acts only as the orchestration layer and not as the source of truth.
-
-This section describes the mutation flow only for approved Phase 1 cases. It must not be read as blanket confirmation that all create/update/delete flows are part of Phase 1.
-
-## Workflow
-
-1. UI sends mutation request to MDU
-2. MDU validates:
-   - bearer token
-   - request body
-   - path parameters
-   - basic business input rules that can be checked locally
-3. MDU determines which PROV-owned domain is being changed
-4. MDU forwards the request to PROV using:
-   - `x-api`
-   - `x-authorization`
-   - request/correlation IDs
-5. PROV evaluates permissions and business rules
-6. PROV applies the mutation if allowed
-7. PROV returns success or a domain/business/access failure
-8. MDU converts the result into a normalized Mango-facing response
-9. MDU returns the final response
-
-## Important Rules
-
-- MDU must not store authoritative local truth for the mutated object
-- MDU must not bypass PROV permission checks
-- MDU must normalize failures instead of leaking raw downstream errors
-
----
-
-# 8. Access Summary Workflow
-
-Phase 1 may include access-summary style endpoints where the UI needs a summarized view of effective access.
-
-## Goal
-
-Expose a Mango-facing view of access-related information without making MDU the RBAC engine.
-
-## Workflow
-
-1. UI calls the access-summary style endpoint
-2. MDU validates the token
-3. MDU forwards user context to PROV
-4. PROV evaluates current scope and RBAC truth
-5. PROV returns the authoritative access facts
-6. MDU transforms that result into an MDU-facing summary response
-7. MDU returns the normalized response
-
-## Important Rule
-
-PROV remains the RBAC decision-maker.
-
-MDU only shapes the summary.
-
----
-
-# 9. Timeout and Retry Behavior
+# 8. Timeout and Retry Behavior
 
 Phase 1 downstream calls must use explicit bounded timeouts.
 
@@ -418,7 +418,7 @@ If a downstream timeout or retryable dependency failure still prevents correct c
 
 ---
 
-# 10. Error Workflow in Phase 1
+# 9. Error Workflow in Phase 1
 
 Every Phase 1 API follows the same error model.
 
@@ -464,7 +464,7 @@ MDU must not expose raw downstream stack traces or internal secrets.
 
 ---
 
-# 11. Implementation Boundary Note
+# 10. Implementation Boundary Note
 
 Phase 1 implementation must preserve clean service boundaries:
 
@@ -477,7 +477,7 @@ This workflow document describes runtime behavior, but it does not replace the i
 
 ---
 
-# 12. Observability Workflow in Phase 1
+# 11. Observability Workflow in Phase 1
 
 Every Phase 1 request should be observable end to end.
 
@@ -512,7 +512,7 @@ Phase 1 should preserve traceability across:
 
 ---
 
-# 13. Runtime Workflow at Startup
+# 12. Runtime Workflow at Startup
 
 Phase 1 startup must fail fast if critical configuration is invalid.
 
@@ -528,7 +528,7 @@ If critical configuration is missing or unsafe, startup must fail instead of run
 
 ---
 
-# 14. What We Get After Phase 1
+# 13. What We Get After Phase 1
 
 After Phase 1, MDU will be a real integrated service with:
 
@@ -546,7 +546,7 @@ But it gives the working service foundation that later phases will build on.
 
 ---
 
-# 15. Final Phase 1 Workflow Summary
+# 14. Final Phase 1 Workflow Summary
 
 Phase 1 request flow is:
 
@@ -563,3 +563,116 @@ UI
 ```
 
 That is the core Phase 1 workflow model for MDU Service.
+
+---
+
+# 15. UI View and Functionality to API Mapping
+
+This section maps the UI actions, views, and dashboards in Phase 1 directly to the API endpoints they call (across MDU, OWSEC, and PROV), describing request parameters and response shapes.
+
+## 1. App Initialization & Session Bootstrap
+- **Functionality:** Load caller profile, permissions, and active scope on app launch.
+- **API Called:** `GET /mdu/me` (MDU)
+- **Request:**
+  * Headers: `Authorization: Bearer <owsec-token>`
+- **Response:** `200 OK` with `SessionContext` (`user`, `activeScope`, `assignments`, `permissions`).
+- **Workflow:**
+  1. UI sends request with bearer token to MDU.
+  2. MDU validates token via OWSEC and retrieves operational context from PROV.
+  3. MDU returns consolidated `SessionContext` to the UI to determine available features.
+
+## 2. Organization Tree (Sidebar Navigation)
+- **Functionality:** Render the expandable hierarchy tree of entities and venues.
+- **API Called:** `GET /mdu/hierarchy/tree` (MDU)
+- **Request:**
+  * Headers: `Authorization: Bearer <owsec-token>`
+  * Query Parameters: `scopeEntityId` (optional UUID)
+- **Response:** `200 OK` with `HierarchyTreeResponse` (nested array of roots with `HierarchyNode` and `HierarchyNodeSummary` containing sub-entity/venue/user counts).
+- **Workflow:**
+  1. UI requests the tree structure under the current scoped entity.
+  2. MDU queries PROV for the entity tree, calculates node summary metrics, and returns the nested structure.
+
+## 3. Entity Workspace (Overview and Child Listings)
+- **Functionality:** View details of selected entity (site, building) and list its child entities.
+- **APIs Called:**
+  * View Detail: `GET /mdu/entities/{entityId}` (MDU)
+  * List Children: `GET /mdu/entities?parentEntityId={entityId}` (MDU)
+- **Request:**
+  * Path/Query: `entityId` or `parentEntityId` (UUID)
+- **Response:** `EntityDetail` or `EntityListResponse` (array of `EntitySummary` containing `id`, `name`, `parentId`, `type`, ancestry `path`, user/venue/device counts).
+- **Workflow:**
+  1. UI requests details or child lists for the active entity.
+  2. MDU queries PROV downstream, maps fields, and returns them to the UI.
+
+## 4. Venue Workspace (Listings and Details)
+- **Functionality:** View venue hierarchy (e.g. floors, rooms) and venue details under an entity.
+- **APIs Called:**
+  * List Venues: `GET /mdu/entities/{entityId}/venues` (MDU)
+  * View Detail: `GET /mdu/venues/{venueId}` (MDU)
+- **Request:**
+  * Path/Query: `entityId` or `venueId` (UUID), `parentVenueId` (optional query filter)
+- **Response:** `VenueListResponse` (array of `VenueSummary`) or `VenueDetail` (adds descriptions, policy/role IDs).
+- **Workflow:**
+  1. UI requests venues associated with the active entity/parent venue.
+  2. MDU retrieves the records from PROV and normalizes the venue detail.
+
+## 5. Team/Users Management & Profile CRUD
+- **Functionality:** Retrieve the user list and manage admin-user profiles (CRUD).
+- **APIs Called (Direct to OWSEC):**
+  * List Users: `GET /users`
+  * Create User: `POST /user`
+  * Update User: `PUT /user/{id}`
+  * Delete User: `DELETE /user/{id}`
+- **Request:**
+  * Headers: `Authorization: Bearer <owsec-token>`
+  * Query Parameters (List): `offset`, `limit`
+  * Body (Create/Update): User profile fields
+- **Response:** `UserInfoList` or single `UserInfo` object.
+- **Workflow:**
+  1. Since the user database is owned entirely by OWSEC, user list retrieval and account mutations bypass MDU and call OWSEC directly.
+  2. OWSEC validates the caller session and returns or modifies the user record directly.
+
+## 6. User Scope Assignments (Cross-System Mapping)
+- **Functionality:** Bind users (from OWSEC) to specific operational entity/venue scopes and management roles (from PROV).
+- **APIs Called (via MDU):**
+  * List Assignments: `GET /mdu/users/{userId}/entities`
+  * Grant Assignment: `POST /mdu/users/{userId}/entities`
+  * Revoke Assignment: `DELETE /mdu/users/{userId}/entities/{entityId}`
+- **Request:**
+  * Body (Grant): `CreateUserAssignmentRequest` (`scopeType`, `scopeId`, `role`)
+- **Response:** `UserAssignmentsResponse` (list), `201 Created` with `UserAssignment` (grant), or `204 No Content` (revoke).
+- **Workflow:**
+  1. To bind a user identity to a resource scope, the UI calls MDU.
+  2. MDU acts as the orchestrator: it verifies the user ID exists in OWSEC and requests PROV to record the role/policy binding for that user on the target entity/venue.
+
+## 7. Customers / Operators Management
+- **Functionality:** View and manage customer profiles (modeled as operators).
+- **APIs Called (Direct to PROV):**
+  * List Customers: `GET /operator`
+  * View Detail: `GET /operator/{uuid}`
+  * Create Customer: `POST /operator`
+  * Update Customer: `PUT /operator/{uuid}`
+  * Delete Customer: `DELETE /operator/{uuid}`
+- **Request:**
+  * Query Parameters (List): `offset`, `limit`
+  * Request Body (Create/Update): `Operator` fields
+- **Response:** `OperatorList` or single `Operator` object.
+- **Workflow:**
+  1. Since customer/operator database tables reside in PROV, operator list and profile mutations bypass MDU and call PROV directly.
+  2. PROV applies standard tenant bounds and updates the operator record.
+
+## 8. Entity & Venue CRUD Modals
+- **Functionality:** Create, update, or delete entities and venues.
+- **APIs Called:**
+  * Create Entity: `POST /mdu/entities` (MDU)
+  * Update Entity: `PATCH /mdu/entities/{entityId}` (MDU)
+  * Delete Entity: `DELETE /mdu/entities/{entityId}` (MDU)
+  * Create Venue: `POST /mdu/entities/{entityId}/venues` (MDU)
+  * Update Venue: `PATCH /mdu/venues/{venueId}` (MDU)
+  * Delete Venue: `DELETE /mdu/venues/{venueId}` (MDU)
+- **Request:**
+  * Request Bodies: `CreateEntityRequest`, `UpdateEntityRequest`, `CreateVenueRequest`, or `UpdateVenueRequest`.
+- **Response:** `201 Created` with detail, `200 OK` with updated detail, or `204 No Content` on deletion.
+- **Workflow:**
+  1. UI submits mutations through MDU.
+  2. MDU forwards the requests downstream to PROV.
