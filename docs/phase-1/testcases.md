@@ -1689,7 +1689,7 @@ Important assertions:
   - `roleTemplate`
   - `resourcePermissions`
 - `resourcePermissions[*].resource` and `policies[*]` must match declared enums exactly.
-- GET negative coverage is limited to the documented query-parameter errors for missing `entityId` and missing venue-scope `venueId`.
+- GET negative coverage includes the documented query-parameter errors for missing `entityId`, missing venue-scope `venueId`, and invalid `scope` enum values.
 - Update request must conform to exactly one `oneOf` branch.
 - Entity payload must not include `venueId`.
 - Venue payload must include `venueId`.
