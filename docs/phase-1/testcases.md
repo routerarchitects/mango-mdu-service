@@ -396,7 +396,8 @@ Success response body:
 Important assertions:
 
 - Request body matches `UpdateOperatorRequest`.
-- Wrong field types, wrong `Content-Type`, malformed JSON, and empty required body must be rejected.
+- Wrong field types, wrong `Content-Type`, and malformed JSON must be rejected.
+- The request body is required by contract, but an empty JSON object `{}` remains contract-valid unless the OpenAPI later requires at least one mutable field.
 - Conflict behavior must use the shared `ConflictError` envelope.
 
 ## Test Cases
@@ -404,7 +405,7 @@ Important assertions:
 | ID | Name | Expected Result |
 |---|---|---|
 | TC-PUT-OPERATOR-001 | Update operator succeeds | `200 OK`; field-level `OperatorDetail` assertions pass |
-| TC-PUT-OPERATOR-002 | Empty body is rejected | `400 Bad Request` |
+| TC-PUT-OPERATOR-002 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateOperatorRequest` |
 | TC-PUT-OPERATOR-003 | Wrong field type is rejected | `400 Bad Request` |
 | TC-PUT-OPERATOR-004 | Wrong `Content-Type` is rejected | `400 Bad Request`; contract-level bad-request response |
 | TC-PUT-OPERATOR-005 | Malformed JSON is rejected | `400 Bad Request`; contract-level bad-request response |
@@ -588,7 +589,7 @@ Important assertions:
 |---|---|---|
 | TC-HIERARCHY-001 | Get full visible hierarchy succeeds | `200 OK`; field-level `HierarchyTreeResponse` assertions pass |
 | TC-HIERARCHY-002 | Get scoped hierarchy tree succeeds | `200 OK`; tree anchored to requested scope where applicable |
-| TC-HIERARCHY-003 | Invalid `scopeEntityId` returns bad request | `400 Bad Request` |
+| TC-HIERARCHY-003 | Scoped tree accepts contract-valid opaque `scopeEntityId` values | query parameter is treated as generic `Id` string unless the contract adds format constraints |
 | TC-HIERARCHY-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-HIERARCHY-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-HIERARCHY-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
@@ -833,7 +834,7 @@ Important assertions:
 | TC-GET-ENTITY-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-PUT-ENTITY-001 | Update entity succeeds | `200 OK`; field-level `EntityDetail` assertions pass |
 | TC-PUT-ENTITY-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-ENTITY-003 | Empty or malformed body is rejected | `400 Bad Request`; contract-level bad-request response |
+| TC-PUT-ENTITY-003 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateEntityRequest` |
 | TC-PUT-ENTITY-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-PUT-ENTITY-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-PUT-ENTITY-006 | Unknown entity returns not found | `404 Not Found` |
@@ -963,7 +964,7 @@ Important assertions:
 | TC-LIST-VENUES-002 | Default pagination applies when omitted | `metadata.limit = 20`; `metadata.offset = 0` |
 | TC-LIST-VENUES-003 | Empty page succeeds | `200 OK`; `items = []` |
 | TC-LIST-VENUES-004 | High offset returns empty page | `200 OK`; metadata valid |
-| TC-LIST-VENUES-005 | Invalid entity path parameter returns bad request | `400 Bad Request` |
+| TC-LIST-VENUES-005 | Entity path parameter accepts contract-valid opaque IDs | path parameter is treated as generic `Id` string unless the contract adds format constraints |
 | TC-LIST-VENUES-006 | Unknown entity returns not found | `404 Not Found` |
 | TC-LIST-VENUES-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-LIST-VENUES-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
@@ -1044,7 +1045,7 @@ Important assertions:
 | TC-GET-VENUE-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-PUT-VENUE-001 | Update venue succeeds | `200 OK`; field-level `VenueDetail` assertions pass |
 | TC-PUT-VENUE-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-VENUE-003 | Empty or malformed body is rejected | `400 Bad Request`; contract-level bad-request response |
+| TC-PUT-VENUE-003 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateVenueRequest` |
 | TC-PUT-VENUE-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-PUT-VENUE-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-PUT-VENUE-006 | Unknown venue returns not found | `404 Not Found` |
@@ -1329,11 +1330,10 @@ Important assertions:
 | TC-CREATE-ROLE-002 | Missing `name` returns validation error | `400 Bad Request` |
 | TC-CREATE-ROLE-003 | Missing `managementPolicy` returns validation error | `400 Bad Request` |
 | TC-CREATE-ROLE-004 | Wrong type in `users` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-005 | Invalid ID-typed field combination returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-006 | Malformed JSON or empty body is rejected | `400 Bad Request` |
-| TC-CREATE-ROLE-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-CREATE-ROLE-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-CREATE-ROLE-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
+| TC-CREATE-ROLE-005 | Malformed JSON or empty body is rejected | `400 Bad Request` |
+| TC-CREATE-ROLE-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
+| TC-CREATE-ROLE-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
+| TC-CREATE-ROLE-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-GET-ROLE-001 | Get role detail succeeds | `200 OK`; field-level `ManagementRole` assertions pass |
 | TC-GET-ROLE-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-ROLE-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
@@ -1341,7 +1341,7 @@ Important assertions:
 | TC-GET-ROLE-005 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-PUT-ROLE-001 | Update role succeeds | `200 OK`; field-level `ManagementRole` assertions pass |
 | TC-PUT-ROLE-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-ROLE-003 | Empty or malformed body is rejected | `400 Bad Request`; contract-level bad-request response |
+| TC-PUT-ROLE-003 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateManagementRoleRequest` |
 | TC-PUT-ROLE-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-PUT-ROLE-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-PUT-ROLE-006 | Unknown role returns not found | `404 Not Found` |
