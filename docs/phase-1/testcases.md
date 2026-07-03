@@ -1108,6 +1108,20 @@ Create request body example:
 }
 ```
 
+Venue-scoped request body example:
+
+```json
+{
+  "name": "Venue Installer",
+  "description": "Venue-scoped installation technician role",
+  "managementPolicy": "523e4567-e89b-12d3-a456-426614174000",
+  "users": [
+    "123e4567-e89b-12d3-a456-426614174000"
+  ],
+  "venue": "423e4567-e89b-12d3-a456-426614174000"
+}
+```
+
 Success response body example for create/get/update:
 
 ```json
@@ -1314,6 +1328,7 @@ Important assertions:
 - Item/detail response matches `ManagementRole`.
 - `name` and `managementPolicy` are required on create.
 - `users`, when present, must be an array of IDs.
+- Role payloads may be entity-scoped or venue-scoped, and either scope must remain contract-compatible when returned.
 - Exact pagination behavior is validated on list route.
 
 ## Test Cases
@@ -1325,30 +1340,34 @@ Important assertions:
 | TC-LIST-ROLES-003 | High offset returns empty page | `200 OK`; empty page valid |
 | TC-LIST-ROLES-004 | Invalid pagination params return bad request | `400 Bad Request` |
 | TC-LIST-ROLES-005 | Filter by `entityId` succeeds | `200 OK`; returned roles satisfy filter |
-| TC-LIST-ROLES-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-LIST-ROLES-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-LIST-ROLES-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
+| TC-LIST-ROLES-006 | Venue-scoped role items remain contract-compatible when returned | `200 OK`; returned venue-scoped items preserve the `venue` field |
+| TC-LIST-ROLES-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
+| TC-LIST-ROLES-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
+| TC-LIST-ROLES-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-CREATE-ROLE-001 | Create role succeeds | `201 Created`; response is contract-compatible with `ManagementRole` |
-| TC-CREATE-ROLE-002 | Missing `name` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-003 | Missing `managementPolicy` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-004 | Wrong type in `users` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-005 | Malformed JSON or empty body is rejected | `400 Bad Request` |
-| TC-CREATE-ROLE-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-CREATE-ROLE-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-CREATE-ROLE-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
+| TC-CREATE-ROLE-002 | Venue-scoped role create succeeds | `201 Created`; response preserves the venue-scoped `ManagementRole` shape |
+| TC-CREATE-ROLE-003 | Missing `name` returns validation error | `400 Bad Request` |
+| TC-CREATE-ROLE-004 | Missing `managementPolicy` returns validation error | `400 Bad Request` |
+| TC-CREATE-ROLE-005 | Wrong type in `users` returns validation error | `400 Bad Request` |
+| TC-CREATE-ROLE-006 | Malformed JSON or empty body is rejected | `400 Bad Request` |
+| TC-CREATE-ROLE-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
+| TC-CREATE-ROLE-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
+| TC-CREATE-ROLE-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-GET-ROLE-001 | Get role detail succeeds | `200 OK`; response is contract-compatible with `ManagementRole` |
-| TC-GET-ROLE-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-GET-ROLE-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-GET-ROLE-004 | Unknown role returns not found | `404 Not Found` |
-| TC-GET-ROLE-005 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
+| TC-GET-ROLE-002 | Venue-scoped role detail remains contract-compatible when returned | `200 OK`; returned role preserves the `venue` field |
+| TC-GET-ROLE-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
+| TC-GET-ROLE-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
+| TC-GET-ROLE-005 | Unknown role returns not found | `404 Not Found` |
+| TC-GET-ROLE-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-PUT-ROLE-001 | Update role succeeds | `200 OK`; response is contract-compatible with `ManagementRole` |
-| TC-PUT-ROLE-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-ROLE-003 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateManagementRoleRequest` |
-| TC-PUT-ROLE-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-PUT-ROLE-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-PUT-ROLE-006 | Unknown role returns not found | `404 Not Found` |
-| TC-PUT-ROLE-007 | Conflict returns conflict | `409 Conflict` |
-| TC-PUT-ROLE-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
+| TC-PUT-ROLE-002 | Venue-scoped role update succeeds | `200 OK`; response preserves the venue-scoped `ManagementRole` shape |
+| TC-PUT-ROLE-003 | Wrong field type returns validation error | `400 Bad Request` |
+| TC-PUT-ROLE-004 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateManagementRoleRequest` |
+| TC-PUT-ROLE-005 | Missing bearer token returns unauthorized | `401 Unauthorized` |
+| TC-PUT-ROLE-006 | Caller lacks permission returns forbidden | `403 Forbidden` |
+| TC-PUT-ROLE-007 | Unknown role returns not found | `404 Not Found` |
+| TC-PUT-ROLE-008 | Conflict returns conflict | `409 Conflict` |
+| TC-PUT-ROLE-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 | TC-DELETE-ROLE-001 | Delete role succeeds | `204 No Content`; no JSON body |
 | TC-DELETE-ROLE-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-DELETE-ROLE-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
