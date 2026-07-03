@@ -1,14 +1,16 @@
 # Mango MDU Service - Phase 1 API Test Cases
 
-Scope: Phase 1 MDU Service APIs defined in the uploaded OpenAPI contract.
+Scope: Phase 1 public MDU Service APIs defined in the uploaded OpenAPI contract.
 
-This document contains the approved testcase set for the Phase 1 MDU Service API contract.
+This document contains the approved testcase set for the public Phase 1 MDU Service API contract.
 
 ## Global Test Assumptions
 
-- MDU northbound business APIs are bearer-authenticated unless the route explicitly overrides auth.
+- This document covers the public client-facing OpenAPI contract only.
+- Public MDU northbound APIs in this contract are bearer-authenticated unless the route explicitly overrides auth.
 - `GET /livez` is unauthenticated.
 - Public northbound MDU APIs in this contract do **not** require `X-API-KEY` / `x-api` from callers.
+- Internal/private routes and internal authentication modes are intentionally out of scope for this testcase document.
 - `X-Request-Id` and `X-Correlation-Id` are optional request headers on documented protected routes.
 - All shared JSON error responses use the `ApiError` envelope:
   - `ErrorCode`
@@ -54,8 +56,8 @@ Success response body:
 | ID | Name | Expected Result |
 |---|---|---|
 | TC-LIVEZ-001 | Liveness probe succeeds | `200 OK`; response body not asserted beyond contract |
-| TC-LIVEZ-002 | Liveness route is unauthenticated | Request without bearer token is accepted |
-| TC-LIVEZ-003 | Unsupported method is rejected | Method rejected by router/runtime behavior |
+| TC-LIVEZ-002 | Liveness route is unauthenticated | request without bearer credentials remains contract-valid |
+| TC-LIVEZ-003 | Unsupported method is outside the documented contract surface | behavior is not specified further in this document |
 
 ---
 
@@ -284,7 +286,7 @@ Important assertions:
 | ID | Name | Expected Result |
 |---|---|---|
 | TC-SESSION-001 | Session lookup succeeds with populated active scope | `200 OK`; response is contract-compatible with `SessionContext` |
-| TC-SESSION-002 | Session lookup succeeds with `activeScope = null` | `200 OK`; nullable `activeScope` accepted |
+| TC-SESSION-002 | Session lookup succeeds with `activeScope = null` | `200 OK`; nullable `activeScope` remains contract-valid |
 | TC-SESSION-003 | Session response validates required and optional user fields correctly | `user.id` is present; optional `UserSummary` fields are validated only when returned |
 | TC-SESSION-004 | Session response validates assignment collection | each assignment is contract-compatible and nested path items are valid when present |
 | TC-SESSION-005 | Session response validates permissions object | each permission decision is contract-compatible with valid `allowed` and `mode` values |
@@ -339,7 +341,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-GET-OPERATOR-001 | Get operator detail succeeds | `200 OK`; field-level `OperatorDetail` assertions pass |
+| TC-GET-OPERATOR-001 | Get operator detail succeeds | `200 OK`; response is contract-compatible with `OperatorDetail` |
 | TC-GET-OPERATOR-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-OPERATOR-003 | Caller lacks scope to read operator returns forbidden | `403 Forbidden` |
 | TC-GET-OPERATOR-004 | Unknown operator returns not found | `404 Not Found`; exact `ApiError` envelope |
@@ -404,8 +406,8 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-PUT-OPERATOR-001 | Update operator succeeds | `200 OK`; field-level `OperatorDetail` assertions pass |
-| TC-PUT-OPERATOR-002 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateOperatorRequest` |
+| TC-PUT-OPERATOR-001 | Update operator succeeds | `200 OK`; response is contract-compatible with `OperatorDetail` |
+| TC-PUT-OPERATOR-002 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateOperatorRequest` |
 | TC-PUT-OPERATOR-003 | Wrong field type is rejected | `400 Bad Request` |
 | TC-PUT-OPERATOR-004 | Wrong `Content-Type` is rejected | `400 Bad Request`; contract-level bad-request response |
 | TC-PUT-OPERATOR-005 | Malformed JSON is rejected | `400 Bad Request`; contract-level bad-request response |
@@ -507,7 +509,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-SUBSCRIBERS-001 | List subscribers succeeds | `200 OK`; field-level wrapper and item assertions pass |
+| TC-SUBSCRIBERS-001 | List subscribers succeeds | `200 OK`; response is contract-compatible with `SubscriberListResponse` |
 | TC-SUBSCRIBERS-002 | Empty subscriber list succeeds | `200 OK`; `items = []` |
 | TC-SUBSCRIBERS-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-SUBSCRIBERS-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
@@ -587,7 +589,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-HIERARCHY-001 | Get full visible hierarchy succeeds | `200 OK`; field-level `HierarchyTreeResponse` assertions pass |
+| TC-HIERARCHY-001 | Get full visible hierarchy succeeds | `200 OK`; response is contract-compatible with `HierarchyTreeResponse` |
 | TC-HIERARCHY-002 | Get scoped hierarchy tree succeeds | `200 OK`; tree anchored to requested scope where applicable |
 | TC-HIERARCHY-003 | Scoped tree accepts contract-valid opaque `scopeEntityId` values | query parameter is treated as generic `Id` string unless the contract adds format constraints |
 | TC-HIERARCHY-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
@@ -666,7 +668,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-LIST-ENTITIES-001 | List entities succeeds with explicit pagination | `200 OK`; field-level wrapper and item assertions pass |
+| TC-LIST-ENTITIES-001 | List entities succeeds with explicit pagination | `200 OK`; response is contract-compatible with `EntityListResponse` |
 | TC-LIST-ENTITIES-002 | Default pagination applies when params are omitted | `200 OK`; `metadata.limit = 20`; `metadata.offset = 0` |
 | TC-LIST-ENTITIES-003 | Empty page succeeds | `200 OK`; `items = []`; metadata remains valid |
 | TC-LIST-ENTITIES-004 | High offset beyond result set returns empty page | `200 OK`; `items = []`; metadata reflects request |
@@ -753,7 +755,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-CREATE-ENTITY-001 | Create entity succeeds | `201 Created`; field-level `EntityDetail` assertions pass |
+| TC-CREATE-ENTITY-001 | Create entity succeeds | `201 Created`; response is contract-compatible with `EntityDetail` |
 | TC-CREATE-ENTITY-002 | Missing `name` returns validation error | `400 Bad Request`; `ApiError` envelope |
 | TC-CREATE-ENTITY-003 | Invalid `type` enum returns validation error | `400 Bad Request` |
 | TC-CREATE-ENTITY-004 | Wrong field type returns validation error | `400 Bad Request` |
@@ -826,15 +828,15 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-GET-ENTITY-001 | Get entity detail succeeds | `200 OK`; field-level `EntityDetail` assertions pass |
-| TC-GET-ENTITY-002 | Entity detail with `parentId = null` succeeds | `200 OK`; nullable `parentId` accepted |
+| TC-GET-ENTITY-001 | Get entity detail succeeds | `200 OK`; response is contract-compatible with `EntityDetail` |
+| TC-GET-ENTITY-002 | Entity detail with `parentId = null` succeeds | `200 OK`; nullable `parentId` remains contract-valid |
 | TC-GET-ENTITY-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-ENTITY-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-GET-ENTITY-005 | Unknown entity returns not found | `404 Not Found` |
 | TC-GET-ENTITY-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-PUT-ENTITY-001 | Update entity succeeds | `200 OK`; field-level `EntityDetail` assertions pass |
+| TC-PUT-ENTITY-001 | Update entity succeeds | `200 OK`; response is contract-compatible with `EntityDetail` |
 | TC-PUT-ENTITY-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-ENTITY-003 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateEntityRequest` |
+| TC-PUT-ENTITY-003 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateEntityRequest` |
 | TC-PUT-ENTITY-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-PUT-ENTITY-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-PUT-ENTITY-006 | Unknown entity returns not found | `404 Not Found` |
@@ -960,7 +962,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-LIST-VENUES-001 | List venues under entity succeeds | `200 OK`; field-level `VenueListResponse` assertions pass |
+| TC-LIST-VENUES-001 | List venues under entity succeeds | `200 OK`; response is contract-compatible with `VenueListResponse` |
 | TC-LIST-VENUES-002 | Default pagination applies when omitted | `metadata.limit = 20`; `metadata.offset = 0` |
 | TC-LIST-VENUES-003 | Empty page succeeds | `200 OK`; `items = []` |
 | TC-LIST-VENUES-004 | High offset returns empty page | `200 OK`; metadata valid |
@@ -969,7 +971,7 @@ Important assertions:
 | TC-LIST-VENUES-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-LIST-VENUES-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-LIST-VENUES-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-CREATE-VENUE-001 | Create venue succeeds | `201 Created`; field-level `VenueDetail` assertions pass |
+| TC-CREATE-VENUE-001 | Create venue succeeds | `201 Created`; response is contract-compatible with `VenueDetail` |
 | TC-CREATE-VENUE-002 | Missing `name` returns validation error | `400 Bad Request` |
 | TC-CREATE-VENUE-003 | Wrong field type returns validation error | `400 Bad Request` |
 | TC-CREATE-VENUE-004 | Malformed JSON is rejected | `400 Bad Request` |
@@ -1037,15 +1039,15 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-GET-VENUE-001 | Get venue succeeds | `200 OK`; field-level `VenueDetail` assertions pass |
-| TC-GET-VENUE-002 | Nullable `parentVenueId` is accepted | `200 OK` |
+| TC-GET-VENUE-001 | Get venue succeeds | `200 OK`; response is contract-compatible with `VenueDetail` |
+| TC-GET-VENUE-002 | Nullable `parentVenueId` remains contract-valid | `200 OK` |
 | TC-GET-VENUE-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-VENUE-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-GET-VENUE-005 | Unknown venue returns not found | `404 Not Found` |
 | TC-GET-VENUE-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-PUT-VENUE-001 | Update venue succeeds | `200 OK`; field-level `VenueDetail` assertions pass |
+| TC-PUT-VENUE-001 | Update venue succeeds | `200 OK`; response is contract-compatible with `VenueDetail` |
 | TC-PUT-VENUE-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-VENUE-003 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateVenueRequest` |
+| TC-PUT-VENUE-003 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateVenueRequest` |
 | TC-PUT-VENUE-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-PUT-VENUE-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-PUT-VENUE-006 | Unknown venue returns not found | `404 Not Found` |
@@ -1184,7 +1186,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-LIST-POLICIES-001 | List policies succeeds | `200 OK`; field-level wrapper and item assertions pass |
+| TC-LIST-POLICIES-001 | List policies succeeds | `200 OK`; response is contract-compatible with `ManagementPolicyListResponse` |
 | TC-LIST-POLICIES-002 | Default pagination applies when omitted | metadata defaults verified |
 | TC-LIST-POLICIES-003 | High offset returns empty page | `200 OK`; empty page valid |
 | TC-LIST-POLICIES-004 | Invalid pagination params return bad request | `400 Bad Request` |
@@ -1194,7 +1196,7 @@ Important assertions:
 | TC-LIST-POLICIES-008 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-LIST-POLICIES-009 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-LIST-POLICIES-010 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-CREATE-POLICY-001 | Create policy succeeds | `201 Created`; field-level `ManagementPolicy` assertions pass |
+| TC-CREATE-POLICY-001 | Create policy succeeds | `201 Created`; response is contract-compatible with `ManagementPolicy` |
 | TC-CREATE-POLICY-002 | Create policy preserves `entries[*].users` when provided | `201 Created`; returned `ManagementPolicy.entries[*].users` matches request |
 | TC-CREATE-POLICY-003 | Missing `name` returns validation error | `400 Bad Request` |
 | TC-CREATE-POLICY-004 | Invalid nested `entries` shape returns validation error | `400 Bad Request` |
@@ -1205,13 +1207,13 @@ Important assertions:
 | TC-CREATE-POLICY-009 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-CREATE-POLICY-010 | Conflict returns conflict | `409 Conflict` |
 | TC-CREATE-POLICY-011 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-GET-POLICY-001 | Get policy detail succeeds | `200 OK`; field-level `ManagementPolicy` assertions pass |
+| TC-GET-POLICY-001 | Get policy detail succeeds | `200 OK`; response is contract-compatible with `ManagementPolicy` |
 | TC-GET-POLICY-002 | Get policy detail preserves `entries[*].users` when present | `200 OK`; returned `ManagementPolicy.entries[*].users` matches persisted data |
 | TC-GET-POLICY-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-POLICY-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-GET-POLICY-005 | Unknown policy returns not found | `404 Not Found` |
 | TC-GET-POLICY-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-PUT-POLICY-001 | Update policy succeeds | `200 OK`; field-level `ManagementPolicy` assertions pass |
+| TC-PUT-POLICY-001 | Update policy succeeds | `200 OK`; response is contract-compatible with `ManagementPolicy` |
 | TC-PUT-POLICY-002 | Update policy preserves `entries[*].users` when provided | `200 OK`; returned `ManagementPolicy.entries[*].users` matches request |
 | TC-PUT-POLICY-003 | Invalid nested payload returns validation error | `400 Bad Request` |
 | TC-PUT-POLICY-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
@@ -1318,7 +1320,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-LIST-ROLES-001 | List roles succeeds | `200 OK`; field-level wrapper and item assertions pass |
+| TC-LIST-ROLES-001 | List roles succeeds | `200 OK`; response is contract-compatible with `ManagementRoleListResponse` |
 | TC-LIST-ROLES-002 | Default pagination applies when params are omitted | metadata defaults verified |
 | TC-LIST-ROLES-003 | High offset returns empty page | `200 OK`; empty page valid |
 | TC-LIST-ROLES-004 | Invalid pagination params return bad request | `400 Bad Request` |
@@ -1326,7 +1328,7 @@ Important assertions:
 | TC-LIST-ROLES-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-LIST-ROLES-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-LIST-ROLES-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-CREATE-ROLE-001 | Create role succeeds | `201 Created`; field-level `ManagementRole` assertions pass |
+| TC-CREATE-ROLE-001 | Create role succeeds | `201 Created`; response is contract-compatible with `ManagementRole` |
 | TC-CREATE-ROLE-002 | Missing `name` returns validation error | `400 Bad Request` |
 | TC-CREATE-ROLE-003 | Missing `managementPolicy` returns validation error | `400 Bad Request` |
 | TC-CREATE-ROLE-004 | Wrong type in `users` returns validation error | `400 Bad Request` |
@@ -1334,14 +1336,14 @@ Important assertions:
 | TC-CREATE-ROLE-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-CREATE-ROLE-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-CREATE-ROLE-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-GET-ROLE-001 | Get role detail succeeds | `200 OK`; field-level `ManagementRole` assertions pass |
+| TC-GET-ROLE-001 | Get role detail succeeds | `200 OK`; response is contract-compatible with `ManagementRole` |
 | TC-GET-ROLE-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-ROLE-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-GET-ROLE-004 | Unknown role returns not found | `404 Not Found` |
 | TC-GET-ROLE-005 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-PUT-ROLE-001 | Update role succeeds | `200 OK`; field-level `ManagementRole` assertions pass |
+| TC-PUT-ROLE-001 | Update role succeeds | `200 OK`; response is contract-compatible with `ManagementRole` |
 | TC-PUT-ROLE-002 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-ROLE-003 | Empty JSON object remains contract-valid | request body `{}` is contract-allowed for `UpdateManagementRoleRequest` |
+| TC-PUT-ROLE-003 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateManagementRoleRequest` |
 | TC-PUT-ROLE-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-PUT-ROLE-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-PUT-ROLE-006 | Unknown role returns not found | `404 Not Found` |
@@ -1415,7 +1417,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-GET-ASSIGNMENTS-001 | Get user assignments succeeds | `200 OK`; field-level wrapper and item assertions pass |
+| TC-GET-ASSIGNMENTS-001 | Get user assignments succeeds | `200 OK`; response is contract-compatible with `UserAssignmentListResponse` |
 | TC-GET-ASSIGNMENTS-002 | Empty assignment list succeeds | `200 OK`; `items = []` |
 | TC-GET-ASSIGNMENTS-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-ASSIGNMENTS-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
@@ -1544,7 +1546,7 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-CREATE-ASSIGNMENT-001 | Create new scoped assignment succeeds | `201 Created`; field-level `UserAssignment` assertions pass |
+| TC-CREATE-ASSIGNMENT-001 | Create new scoped assignment succeeds | `201 Created`; response is contract-compatible with `UserAssignment` |
 | TC-CREATE-ASSIGNMENT-002 | Existing matching role is resolved by adding user | `201 Created`; response matches `UserAssignment` |
 | TC-CREATE-ASSIGNMENT-003 | Already-assigned request returns idempotent success | `200 OK`; response matches `UserAssignment` |
 | TC-CREATE-ASSIGNMENT-004 | Invalid `scopeType` returns endpoint-specific validation error | `400 Bad Request`; contract-defined validation error response for this route |
