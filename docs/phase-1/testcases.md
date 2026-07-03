@@ -1112,11 +1112,22 @@ Venue-scoped request body example:
 
 ```json
 {
-  "name": "Venue Installer",
-  "description": "Venue-scoped installation technician role",
-  "managementPolicy": "523e4567-e89b-12d3-a456-426614174000",
-  "users": [
-    "123e4567-e89b-12d3-a456-426614174000"
+  "name": "Venue InstallerPolicy",
+  "description": "Venue-scoped configuration policy for installers",
+  "entries": [
+    {
+      "users": [
+        "123e4567-e89b-12d3-a456-426614174000"
+      ],
+      "resources": [
+        "configuration",
+        "inventory"
+      ],
+      "access": [
+        "READ",
+        "MODIFY"
+      ]
+    }
   ],
   "venue": "423e4567-e89b-12d3-a456-426614174000"
 }
