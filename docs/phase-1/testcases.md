@@ -1431,12 +1431,13 @@ Important assertions:
 - `scopeType` is exactly `entity | venue`.
 - `role` matches `RoleKey`.
 - `createdAt` is a valid timestamp when returned.
+- The OpenAPI declares a `400 Bad Request` response for this route, but this document does not define a lexical invalid-`userId` case because `Id` has no format or pattern constraint in the contract.
 
 ## Test Cases
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-GET-ASSIGNMENTS-001 | Get user assignments succeeds | `200 OK`; response is contract-compatible with `UserAssignmentListResponse` |
+| TC-GET-ASSIGNMENTS-001 | Get user assignments succeeds | `200 OK`; response is contract-compatible with `UserAssignmentsResponse` |
 | TC-GET-ASSIGNMENTS-002 | Empty assignment list succeeds | `200 OK`; `items = []` |
 | TC-GET-ASSIGNMENTS-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-GET-ASSIGNMENTS-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
@@ -1560,6 +1561,7 @@ Important assertions:
 - `role` must match `RoleKey`.
 - Success body matches `UserAssignment`.
 - Delete success is `204 No Content` with no JSON body.
+- The OpenAPI declares a `400 Bad Request` response for delete, but this document does not define a lexical invalid-`userId` or invalid-`assignmentId` case because both path parameters use unconstrained `Id` strings in the contract.
 
 ## Test Cases
 
