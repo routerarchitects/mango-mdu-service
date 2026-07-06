@@ -8,7 +8,10 @@ import (
 
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
 	"github.com/routerarchitects/mango-mdu-service/internal/db"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
 	apphttp "github.com/routerarchitects/mango-mdu-service/internal/http"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
+	"github.com/routerarchitects/mango-mdu-service/internal/services"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
 	"github.com/routerarchitects/ow-common-mods/servicerpc"
@@ -88,10 +91,31 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		rootLog.Info("service RPC client factory and token validation are disabled via configuration")
 	}
 
+	var operatorHandler *handlers.OperatorHandler
+	if cfg.Discovery.Enabled {
+		provClient, err := prov.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
+		if err != nil {
+			database.Close()
+			return nil, fmt.Errorf("failed to create prov client: %w", err)
+		}
+		operatorService := services.NewOperatorService(provClient)
+		operatorHandler = handlers.NewOperatorHandler(operatorService)
+	}
+
 	// 5. Assemble Fiber HTTP apps module
 	publicAuthConfig := auth.PublicAuthConfig{}
+
+	expectedAPIKey := cfg.Discovery.InstanceKey
+	if cfg.Discovery.Enabled && discovery != nil {
+		expectedAPIKey = discovery.Self().Key
+	}
+
 	privateAuthConfig := auth.InternalAPIKeyConfig{
-		ExpectedAPIKey: cfg.Discovery.InstanceKey,
+		ExpectedAPIKey: expectedAPIKey,
 	}
 
 	module, err := apphttp.NewModule(apphttp.Dependencies{
@@ -102,6 +126,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		PrivateAuthConfig: privateAuthConfig,
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
+		OperatorHandler:   operatorHandler,
 	})
 	if err != nil {
 		database.Close()
