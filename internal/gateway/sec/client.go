@@ -181,4 +181,3 @@ func (a *ClientAdapter) ValidateToken(ctx context.Context, token string) error {
 func (a *ClientAdapter) ValidateAPIKey(ctx context.Context, apiKey string) error {
 	return a.client.ValidateAPIKey(ctx, apiKey)
 }
-

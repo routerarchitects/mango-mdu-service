@@ -29,8 +29,8 @@ type CreateRoleRequest struct {
 }
 
 type UpdateRoleRequest struct {
-	Name             *string   `json:"name,omitempty"`
-	Description      *string   `json:"description,omitempty"`
-	ManagementPolicy *string   `json:"managementPolicy,omitempty"`
-	Users            []string  `json:"users,omitempty"`
+	Name             *string  `json:"name,omitempty"`
+	Description      *string  `json:"description,omitempty"`
+	ManagementPolicy *string  `json:"managementPolicy,omitempty"`
+	Users            []string `json:"users,omitempty"`
 }

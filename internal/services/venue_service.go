@@ -304,4 +304,3 @@ func (s *VenueService) CreateEntityVenue(reqCtx prov.RequestContext, entityID st
 
 	return s.mapProvToVenueDetail(created, nodeMap, nodePathMap, entityMap, venueMap, roleMap), nil
 }
-
