@@ -9,13 +9,12 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
 	"github.com/routerarchitects/mango-mdu-service/internal/db"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 	apphttp "github.com/routerarchitects/mango-mdu-service/internal/http"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
 	"github.com/routerarchitects/mango-mdu-service/internal/services"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
-	"github.com/routerarchitects/ow-common-mods/servicerpc"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 	"github.com/routerarchitects/ra-common-mods/logger"
 )
 
@@ -65,33 +64,18 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		rootLog.Info("service discovery is disabled via configuration")
 	}
 
-	// 4. Initialize RPC client factory (conditional)
-	var tokenValidator *owsec.SecurityClient
-	if cfg.RPC.Enabled && cfg.Discovery.Enabled {
-		rpcFactory, err := servicerpc.NewServiceRpc(
-			discovery,
-			servicerpc.ServiceRpcConfig{
-				TLSRootCA:    cfg.Server.TLS_ROOTCA,
-				InternalName: cfg.Discovery.PublicEndpoint,
-			},
-			logger.Subsystem("service-rpc"),
-		)
-		if err != nil {
-			database.Close()
-			return nil, fmt.Errorf("failed to create service RPC factory: %w", err)
-		}
-
-		// Retrieve Security Client validator
-		tokenValidator, err = rpcFactory.SecurityClient()
-		if err != nil {
-			database.Close()
-			return nil, fmt.Errorf("failed to create security auth client: %w", err)
-		}
-	} else {
-		rootLog.Info("service RPC client factory and token validation are disabled via configuration")
+	// 4. Initialize token validator (conditional)
+	var tokenValidator auth.PublicAuthValidator
+	if !cfg.RPC.Enabled {
+		rootLog.Info("service RPC and token validation are disabled via configuration")
 	}
 
-	var operatorHandler *handlers.OperatorHandler
+	var sessionHandler *handlers.SessionHandler
+	var hierarchyHandler *handlers.HierarchyHandler
+	var entityHandler *handlers.EntityHandler
+	var venueHandler *handlers.VenueHandler
+	var assignmentHandler *handlers.AssignmentHandler
+
 	if cfg.Discovery.Enabled {
 		provClient, err := prov.NewClient(
 			discovery,
@@ -102,8 +86,35 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 			database.Close()
 			return nil, fmt.Errorf("failed to create prov client: %w", err)
 		}
-		operatorService := services.NewOperatorService(provClient)
-		operatorHandler = handlers.NewOperatorHandler(operatorService)
+
+		secClient, err := sec.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
+		if err != nil {
+			database.Close()
+			return nil, fmt.Errorf("failed to create sec client: %w", err)
+		}
+
+		if cfg.RPC.Enabled {
+			tokenValidator = sec.NewClientAdapter(secClient)
+		}
+
+		sessionService := services.NewSessionService(secClient, provClient)
+		sessionHandler = handlers.NewSessionHandler(sessionService)
+
+		hierarchyService := services.NewHierarchyService(provClient)
+		hierarchyHandler = handlers.NewHierarchyHandler(hierarchyService)
+
+		entityService := services.NewEntityService(provClient)
+		entityHandler = handlers.NewEntityHandler(entityService)
+
+		venueService := services.NewVenueService(provClient)
+		venueHandler = handlers.NewVenueHandler(venueService)
+
+		assignmentService := services.NewAssignmentService(provClient)
+		assignmentHandler = handlers.NewAssignmentHandler(assignmentService)
 	}
 
 	// 5. Assemble Fiber HTTP apps module
@@ -126,7 +137,11 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		PrivateAuthConfig: privateAuthConfig,
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
-		OperatorHandler:   operatorHandler,
+		SessionHandler:    sessionHandler,
+		HierarchyHandler:  hierarchyHandler,
+		EntityHandler:     entityHandler,
+		VenueHandler:      venueHandler,
+		AssignmentHandler: assignmentHandler,
 	})
 	if err != nil {
 		database.Close()

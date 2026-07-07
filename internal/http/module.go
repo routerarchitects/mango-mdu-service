@@ -14,7 +14,6 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsystemroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 )
 
 type Dependencies struct {
@@ -23,9 +22,13 @@ type Dependencies struct {
 	SubsystemConfig   subsystemroutes.Config
 	PublicAuthConfig  auth.PublicAuthConfig
 	PrivateAuthConfig auth.InternalAPIKeyConfig
-	TokenValidator    *owsec.SecurityClient
+	TokenValidator    auth.PublicAuthValidator
 	AuthEnabled       bool
-	OperatorHandler   *handlers.OperatorHandler
+	SessionHandler    *handlers.SessionHandler
+	HierarchyHandler  *handlers.HierarchyHandler
+	EntityHandler     *handlers.EntityHandler
+	VenueHandler      *handlers.VenueHandler
+	AssignmentHandler *handlers.AssignmentHandler
 }
 
 type Module struct {
@@ -64,9 +67,13 @@ func NewModule(deps Dependencies) (*Module, error) {
 
 	// Configure public routes
 	routes.RegisterPublic(publicApp, routes.PublicDeps{
-		AuthHandler:     authMiddleware.GetPublicAuthHandler(),
-		Subsystem:       deps.SubsystemConfig,
-		OperatorHandler: deps.OperatorHandler,
+		AuthHandler:       authMiddleware.GetPublicAuthHandler(),
+		Subsystem:         deps.SubsystemConfig,
+		SessionHandler:    deps.SessionHandler,
+		HierarchyHandler:  deps.HierarchyHandler,
+		EntityHandler:     deps.EntityHandler,
+		VenueHandler:      deps.VenueHandler,
+		AssignmentHandler: deps.AssignmentHandler,
 	})
 
 	// Configure private routes

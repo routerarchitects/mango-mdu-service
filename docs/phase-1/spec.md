@@ -35,10 +35,9 @@ Phase 1 includes:
 - inbound bearer-token validation through OWSEC.
 - token-backed session/bootstrap view APIs:
   - `GET /api/v1/session`.
-- operator APIs and user-access orchestration APIs (assignments, access policies) as approved Phase 1 northbound wrapper contracts over downstream services.
-- complete resource management wrapper APIs (entities, venues, roles, policies) delegating state persistence to PROV.
+- user-access orchestration APIs (assignments, access policies) as approved Phase 1 northbound wrapper contracts over downstream services.
+- complete resource management wrapper APIs (entities, venues) delegating state persistence to PROV.
 - user-scoped assignment APIs (for user roles and access scopes) and access-policy management.
-- subscriber list retrieval for operators.
 - service-to-service downstream calls using internal service credentials.
 - forwarding user bearer context to PROV using `x-authorization` where required.
 - access-summary style workflows where PROV remains the RBAC decision-maker.
@@ -47,7 +46,7 @@ Phase 1 includes:
 - request tracing, request ID, and correlation ID propagation.
 - a clean production route baseline without placeholder scaffold CRUD surfaces.
 
-All operator, entity, venue, role, and policy APIs in Phase 1 act as MDU-facing normalized wrapper contracts, and user endpoints are limited to access orchestration (assignments, access policies) while user identity and CRUD remain directly with OWSEC.
+All entity and venue APIs in Phase 1 act as MDU-facing normalized wrapper contracts, and user endpoints are limited to access orchestration (assignments, access policies) while user identity and CRUD remain directly with OWSEC.
 
 ---
 
@@ -165,18 +164,10 @@ All Phase 1 MDU business APIs listed below require validated bearer-token authen
 ### 1. Session / Access Context (`Session` Tag)
 - `GET /api/v1/session` — Retrieve active session and effective access context.
 
-### 2. Operators (`Operators` Tag)
-- `GET /api/v1/operators/{operatorId}` — Retrieve operator details.
-- `PUT /api/v1/operators/{operatorId}` — Update operator details.
-- `DELETE /api/v1/operators/{operatorId}` — Delete operator.
-
-### 3. Subscribers (`Subscribers` Tag)
-- `GET /api/v1/operators/{operatorId}/subscribers` — Retrieve a simple, unpaginated list of subscriber signup entries filtered by operator ID (constrained listing flow).
-
-### 4. Hierarchy (`Hierarchy` Tag)
+### 2. Hierarchy (`Hierarchy` Tag)
 - `GET /api/v1/hierarchy/tree` — Retrieve full or scoped resource hierarchy tree.
 
-### 5. Entities (`Entities` Tag)
+### 3. Entities (`Entities` Tag)
 - `GET /api/v1/entities` — List entities.
 - `POST /api/v1/entities` — Create a new entity.
 - `GET /api/v1/entities/{entityId}` — Retrieve details of a specific entity.
@@ -185,33 +176,19 @@ All Phase 1 MDU business APIs listed below require validated bearer-token authen
 - `GET /api/v1/entities/{entityId}/venues` — List venues under an entity.
 - `POST /api/v1/entities/{entityId}/venues` — Create a new venue under an entity.
 
-### 6. Venues (`Venues` Tag)
+### 4. Venues (`Venues` Tag)
 - `GET /api/v1/venues/{venueId}` — Retrieve venue details.
 - `PUT /api/v1/venues/{venueId}` — Update venue details.
 - `DELETE /api/v1/venues/{venueId}` — Delete venue.
 
-### 7. Management Policies (`Management Policies` Tag)
-- `GET /api/v1/policies` — List management policies.
-- `POST /api/v1/policies` — Create a new management policy.
-- `GET /api/v1/policies/{policyId}` — Retrieve details of a specific policy.
-- `PUT /api/v1/policies/{policyId}` — Update management policy details.
-- `DELETE /api/v1/policies/{policyId}` — Delete management policy.
-
-### 8. Management Roles (`Management Roles` Tag)
-- `GET /api/v1/roles` — List management roles.
-- `POST /api/v1/roles` — Create a new management role.
-- `GET /api/v1/roles/{roleId}` — Retrieve details of a specific role.
-- `PUT /api/v1/roles/{roleId}` — Update management role details.
-- `DELETE /api/v1/roles/{roleId}` — Delete management role.
-
-### 9. Users / Scoped Assignments & Access (`Users` Tag)
+### 5. Users / Scoped Assignments & Access (`Users` Tag)
 - `GET /api/v1/users/{userId}/assignments` — List resource assignments for a user.
-- `POST /api/v1/users/{userId}/assignments` — Assign resource (entity/venue) scope to a user (handles creation, updating/resolving existing roles, or no-op/idempotent success).
-- `DELETE /api/v1/users/{userId}/assignments/{assignmentId}` — Remove a user scope assignment.
+- `POST /api/v1/users/{userId}/assignments` — Assign resource (entity/venue) scope to a user (allocates a dedicated `ManagementRole` and `ManagementPolicy` 1-to-1 for this user assignment).
+- `DELETE /api/v1/users/{userId}/assignments/{assignmentId}` — Remove a user scope assignment (cascadingly deletes the dedicated role and its associated policy).
 - `GET /api/v1/users/{userId}/access-policy` — Get user access policy (requires `scope`, `entityId`, and optional `venueId` query parameters).
-- `PUT /api/v1/users/{userId}/access-policy` — Update user access policy.
+- `PUT /api/v1/users/{userId}/access-policy` — Update user access policy (updates the custom resource permission entries on the user's existing dedicated policy; requires an active user assignment to exist first).
 
-### 10. Operational Support & Diagnostics (Support Routes)
+### 6. Operational Support & Diagnostics (Support Routes)
 - `GET /livez` — Liveness/health probe check (unauthenticated; public port `16010` is part of the authoritative Phase 1 OpenAPI contract).
 - `GET /api/v1/system` — Retrieve system diagnostics (public port requires `bearerAuth` and is part of the Phase 1 OpenAPI contract).
 - `POST /api/v1/system` — Modify diagnostics log levels (public port requires `bearerAuth` and is part of the Phase 1 OpenAPI contract).
@@ -225,14 +202,14 @@ The operator, entity, venue, role, policy, and user access orchestration APIs ar
 - **PROV** is the authoritative source of truth for operators, entities, venues, roles, policies, and persisted RBAC structures. MDU forwards the caller's user context to PROV to validate authorization and retrieve/persist these records.
 - **Hybrid Routing:** Collection-level operator operations (listing and creating operators) bypass MDU and are called directly to PROV by standard clients. Individual operator member operations (retrieval, updates, deletion) are routed through the MDU facade.
 
-### Operator and User-Access Lifecycles
+### User-Access Lifecycles
 
-Phase 1 provides method and lifecycle coverage for Operator and User-Access API operations as wrapper and orchestration contracts:
+Phase 1 provides method and lifecycle coverage for User-Access API operations as wrapper and orchestration contracts:
 
-- **Operators:** Support member details retrieval (`GET`), updating parameters (`PUT`), and deletion (`DELETE`) through the MDU facade. In alignment with the hybrid routing model, collection-level operator operations (listing and creating operators) bypass MDU and are called directly to PROV by standard clients.
-- **User-Access Orchestration:** MDU does not expose full user CRUD. Instead, it supports user scope assignments (`GET` assignments, `POST` assignment additions—which resolve idempotently to create, update, or return success on existing roles—and `DELETE` assignment removals) and access policy lookup (`GET`) and policy updates (`PUT`). User account lifecycle and profile CRUD remain directly with OWSEC.
+- **User-Access Orchestration:** MDU does not expose full user CRUD. Instead, it supports user scope assignments and access policy management:
+  * **User Scope Assignments (`/assignments`):** Manages the user scope lifecycle. Creating an assignment (`POST`) binds a user to an entity/venue under a default role template (e.g. `admin`, `installer`) and automatically allocates a dedicated, default management policy. Deleting an assignment (`DELETE`) revokes access and cascade-deletes the role/policy.
+  * **User Access Policies (`/access-policy`):** Manages fine-grained permission customizations. Updating an access policy (`PUT`) updates the specific resource permission entries on the existing policy linked to the user's role. It requires an active assignment to exist first.
 - **Resource Management (Entities & Venues):** Support full CRUD operations (`GET`, `POST`, `PUT`, `DELETE`) representing MDU wrappers over PROV's hierarchy tree.
-- **Access Policies & Roles:** Support listing, creation, reading details, updating, and deleting policies and roles, backed entirely by PROV.
 
 #### Role Distinction
 
@@ -242,7 +219,6 @@ The MDU architecture and API contract distinguish between two different types of
 
 **Design Alignment Decisions:**
 *   **Assignment and Session Role Modeling:** Although user scope assignments map to dynamic `ManagementRole` templates downstream, the northbound `CreateUserAssignmentRequest`, `UserAssignment`, and `SessionAssignment` schemas model the `role` property using the fixed `RoleKey` enum. This enforces system-wide identity classifications and ensures alignment with OWSEC's security constraints. As a result, Phase 1 user assignments only support this fixed allowlist of global identity roles, and custom PROV management role templates are out of scope for these assignment endpoints.
-*   **Management Policy Entry User Bindings Parity & Behavior:** To maintain strict 1:1 parity with the downstream PROV database schema, the northbound `ManagementPolicyEntry` schema retains the `users` array. MDU does not persist this array locally; instead, it acts as a stateless facade and forwards it directly to downstream PROV as-is during policy creation and updates, where PROV persists it in the system of record. Although not ignored or rejected, standard Mango-facing client applications should primarily manage user bindings via the `ManagementRole` and assignments endpoints rather than modifying the policy `users` array directly.
 
 
 ---
@@ -478,7 +454,7 @@ After Phase 1, we will have:
 1. a real Mango-facing MDU API service
 2. authenticated APIs under `/api/v1/*`
 3. OWSEC-based token validation at the MDU boundary
-4. PROV-backed foundational operator, entity, venue, role, policy, and user-access orchestration APIs
+4. PROV-backed foundational entity, venue, and user-access orchestration APIs
 5. normalized Mango-facing contracts instead of raw downstream behavior
 6. consistent validation and error handling
 7. production-ready tracing, logging, metrics, and readiness behavior
@@ -498,7 +474,7 @@ Phase 1 is complete only when:
 - downstream calls use service auth correctly
 - user context is forwarded to PROV where required
 - `GET /api/v1/session` is working as the bootstrap API
-- all listed Session, Operator, User, Hierarchy, Entity, Venue, Policy, and Role endpoints are available and match the methods defined in the Phase 1 OpenAPI spec
+- all listed Session, User, Hierarchy, Entity, and Venue endpoints are available and match the methods defined in the Phase 1 OpenAPI spec
 - no placeholder scaffold production routes remain in claimed scope
 - normalized validation and error handling are implemented, returning `401`, `403`, `404`, `409`, and `503` responses where appropriate
 - logging, tracing, metrics, and readiness are in place

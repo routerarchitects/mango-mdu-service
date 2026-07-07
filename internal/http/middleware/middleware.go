@@ -7,7 +7,6 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/requestlog"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 )
 
 // RegisterPublicCORS configures CORS policies on the public Fiber application.
@@ -35,7 +34,7 @@ func NewServiceAuth(
 	authEnabled bool,
 	publicCfg auth.PublicAuthConfig,
 	privateCfg auth.InternalAPIKeyConfig,
-	validator *owsec.SecurityClient,
+	validator auth.PublicAuthValidator,
 ) (*ServiceAuth, error) {
 	// Configure public auth handler (bypassed if AUTH_ENABLED=false)
 	var publicAuth fiber.Handler

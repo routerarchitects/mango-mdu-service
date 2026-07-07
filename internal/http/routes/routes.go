@@ -7,9 +7,13 @@ import (
 )
 
 type PublicDeps struct {
-	AuthHandler     fiber.Handler
-	Subsystem       subsysteroutes.Config
-	OperatorHandler *handlers.OperatorHandler
+	AuthHandler       fiber.Handler
+	Subsystem         subsysteroutes.Config
+	SessionHandler    *handlers.SessionHandler
+	HierarchyHandler  *handlers.HierarchyHandler
+	EntityHandler     *handlers.EntityHandler
+	VenueHandler      *handlers.VenueHandler
+	AssignmentHandler *handlers.AssignmentHandler
 }
 
 type PrivateDeps struct {
@@ -30,9 +34,21 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 	// Base API V1 route group shared by all public endpoints
 	apiV1 := group.Group("/api/v1")
 
-	// Register operators routes
-	if deps.OperatorHandler != nil {
-		deps.OperatorHandler.Register(apiV1)
+	// Register other handlers
+	if deps.SessionHandler != nil {
+		deps.SessionHandler.Register(apiV1)
+	}
+	if deps.HierarchyHandler != nil {
+		deps.HierarchyHandler.Register(apiV1)
+	}
+	if deps.EntityHandler != nil {
+		deps.EntityHandler.Register(apiV1)
+	}
+	if deps.VenueHandler != nil {
+		deps.VenueHandler.Register(apiV1)
+	}
+	if deps.AssignmentHandler != nil {
+		deps.AssignmentHandler.Register(apiV1)
 	}
 }
 
