@@ -1,0 +1,950 @@
+package handlers_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gofiber/fiber/v3"
+	provclient "github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
+	secclient "github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
+	"github.com/routerarchitects/mango-mdu-service/internal/models"
+	"github.com/routerarchitects/mango-mdu-service/internal/services"
+)
+
+func TestGranularHandlers(t *testing.T) {
+	// Mock tree response
+	mockTree := provclient.ProvTreeNode{
+		UUID: "00000000-0000-0000-0000-000000000000",
+		Name: "Root Entity",
+		Type: "entity",
+		Children: []provclient.ProvTreeNode{
+			{
+				UUID: "ent-1",
+				Name: "Sub Entity",
+				Type: "entity",
+				Venues: []provclient.ProvTreeNode{
+					{
+						UUID: "ven-1",
+						Name: "My Venue",
+						Type: "venue",
+					},
+				},
+			},
+		},
+	}
+
+	// Mock server for downstream owprov REST API calls
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// 1. Entity and Venue lists
+		if r.URL.Path == "/api/v1/entity" && r.URL.Query().Get("getTree") == "true" {
+			json.NewEncoder(w).Encode(mockTree)
+			return
+		}
+
+		if r.URL.Path == "/api/v1/entity" {
+			list := []provclient.ProvEntity{
+				{
+					Info: provclient.ProvObjectInfo{
+						ID:   "ent-1",
+						Name: "Sub Entity",
+					},
+					Type: "normal",
+				},
+			}
+			json.NewEncoder(w).Encode(provclient.ProvEntityList{Entities: list})
+			return
+		}
+
+		if r.URL.Path == "/api/v1/venue" {
+			list := []provclient.ProvVenue{
+				{
+					Info: provclient.ProvObjectInfo{
+						ID:   "ven-1",
+						Name: "My Venue",
+					},
+					Entity: "ent-1",
+				},
+			}
+			json.NewEncoder(w).Encode(provclient.ProvVenueList{Venues: list})
+			return
+		}
+
+		// 2. Roles list/creation
+		if r.URL.Path == "/api/v1/managementRole" {
+			list := []provclient.ProvManagementRole{
+				{
+					Info: provclient.ProvObjectInfo{
+						ID:   "rol-1",
+						Name: "admin",
+					},
+					ManagementPolicy: "pol-1",
+					Entity:           "ent-1",
+					Users:            []string{"user-123"},
+				},
+			}
+			json.NewEncoder(w).Encode(provclient.ProvManagementRoleList{Roles: list})
+			return
+		}
+
+		if strings.HasPrefix(r.URL.Path, "/api/v1/managementRole/") {
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/managementRole/")
+			if id == "non-existent" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			if r.Method == http.MethodGet {
+				rol := provclient.ProvManagementRole{
+					Info: provclient.ProvObjectInfo{
+						ID:   id,
+						Name: "admin",
+					},
+					ManagementPolicy: "pol-1",
+					Entity:           "ent-1",
+					Users:            []string{"user-123"},
+				}
+				json.NewEncoder(w).Encode(rol)
+				return
+			}
+			// For updates/creations
+			rol := provclient.ProvManagementRole{
+				Info: provclient.ProvObjectInfo{
+					ID:   id,
+					Name: "admin",
+				},
+				ManagementPolicy: "pol-1",
+				Entity:           "ent-1",
+				Users:            []string{"user-123"},
+			}
+			json.NewEncoder(w).Encode(rol)
+			return
+		}
+
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/api/v1/managementRole/") {
+			id := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			if id == "non-existent" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			rol := provclient.ProvManagementRole{
+				Info: provclient.ProvObjectInfo{
+					ID:   id,
+					Name: "admin",
+				},
+				ManagementPolicy: "pol-1",
+				Entity:           "ent-1",
+				Users:            []string{"user-123"},
+			}
+			json.NewEncoder(w).Encode(rol)
+			return
+		}
+
+		// 3. Policies list/creation
+		if r.URL.Path == "/api/v1/managementPolicy" {
+			list := []provclient.ProvManagementPolicy{
+				{
+					Info: provclient.ProvObjectInfo{
+						ID:   "pol-1",
+						Name: "adminPolicy-user-123",
+					},
+					Entity: "ent-1",
+					Entries: []provclient.ProvManagementPolicyEntry{
+						{
+							Users:     []string{"user-123"},
+							Resources: []string{"configuration", "inventory"},
+							Access:    []string{"READ", "MODIFY"},
+							Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(provclient.ProvManagementPolicyList{Policies: list})
+			return
+		}
+
+		if strings.HasPrefix(r.URL.Path, "/api/v1/managementPolicy/") {
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/managementPolicy/")
+			if id == "non-existent" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			// For Get, Post or Put
+			pol := provclient.ProvManagementPolicy{
+				Info: provclient.ProvObjectInfo{
+					ID:   id,
+					Name: "Policy " + id,
+				},
+				Entity: "ent-1",
+				Entries: []provclient.ProvManagementPolicyEntry{
+					{
+						Users:     []string{"user-123"},
+						Resources: []string{"configuration", "inventory"},
+						Access:    []string{"READ", "MODIFY"},
+						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(pol)
+			return
+		}
+
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/api/v1/managementPolicy/") {
+			id := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			if id == "non-existent" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			pol := provclient.ProvManagementPolicy{
+				Info: provclient.ProvObjectInfo{
+					ID:   id,
+					Name: "Policy " + id,
+				},
+				Entity: "ent-1",
+			}
+			json.NewEncoder(w).Encode(pol)
+			return
+		}
+
+		// 4. Venues Detail/CRUD
+		if strings.HasPrefix(r.URL.Path, "/api/v1/venue/") {
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/venue/")
+			if id == "non-existent" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			var bodyVen provclient.ProvVenue
+			if r.Method == http.MethodPost || r.Method == http.MethodPut {
+				json.NewDecoder(r.Body).Decode(&bodyVen)
+			}
+			name := bodyVen.Info.Name
+			if name == "" {
+				name = "Venue " + id
+			}
+			desc := bodyVen.Info.Description
+			if desc == "" {
+				desc = "Desc of " + id
+			}
+			ven := provclient.ProvVenue{
+				Info: provclient.ProvObjectInfo{
+					ID:          id,
+					Name:        name,
+					Description: desc,
+				},
+				Entity: "ent-1",
+			}
+			json.NewEncoder(w).Encode(ven)
+			return
+		}
+
+		// 5. Entities Detail/CRUD
+		if strings.HasPrefix(r.URL.Path, "/api/v1/entity/") {
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/entity/")
+			if id == "non-existent" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			var bodyEnt provclient.ProvEntity
+			if r.Method == http.MethodPost || r.Method == http.MethodPut {
+				json.NewDecoder(r.Body).Decode(&bodyEnt)
+			}
+			name := bodyEnt.Info.Name
+			if name == "" {
+				name = "Entity " + id
+			}
+			desc := bodyEnt.Info.Description
+			if desc == "" {
+				desc = "Desc of " + id
+			}
+			ent := provclient.ProvEntity{
+				Info: provclient.ProvObjectInfo{
+					ID:          id,
+					Name:        name,
+					Description: desc,
+				},
+				Type: "normal",
+			}
+			json.NewEncoder(w).Encode(ent)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	// Mock server for downstream owsec REST API calls
+	mockSecServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/api/v1/validateToken") {
+			token := r.URL.Query().Get("token")
+			if token == "invalid-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			userInfo := secclient.UserInfo{
+				ID:       "user-123",
+				Email:    "test@example.com",
+				Name:     "Test User",
+				Owner:    "owner-123",
+				UserRole: "admin",
+			}
+			json.NewEncoder(w).Encode(secclient.TokenValidationResponse{UserInfo: userInfo})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockSecServer.Close()
+
+	provClient, err := provclient.NewClient(nil, "", "mdu-test")
+	if err != nil {
+		t.Fatalf("failed to create prov client: %v", err)
+	}
+	provClient.BaseURL = mockServer.URL
+
+	secClient, err := secclient.NewClient(nil, "", "mdu-test")
+	if err != nil {
+		t.Fatalf("failed to create sec client: %v", err)
+	}
+	secClient.BaseURL = mockSecServer.URL
+
+	// Initialize Services & Handlers
+	venueService := services.NewVenueService(provClient)
+	venueHandler := handlers.NewVenueHandler(venueService)
+
+	assignmentService := services.NewAssignmentService(provClient)
+	assignmentHandler := handlers.NewAssignmentHandler(assignmentService)
+
+	entityService := services.NewEntityService(provClient)
+	entityHandler := handlers.NewEntityHandler(entityService)
+
+	sessionService := services.NewSessionService(secClient, provClient)
+	sessionHandler := handlers.NewSessionHandler(sessionService)
+
+	// Fiber app setup
+	app := fiber.New(fiber.Config{
+		ErrorHandler: middleware.ErrorHandler,
+	})
+
+	apiGroup := app.Group("/api/v1")
+	venueHandler.Register(apiGroup)
+	assignmentHandler.Register(apiGroup)
+	entityHandler.Register(apiGroup)
+	sessionHandler.Register(apiGroup)
+
+	// ==========================================
+	// TEST CASES
+	// ==========================================
+
+	// 1. GET /api/v1/session - Positive Case
+	t.Run("GET Session - Positive", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var sessResp models.SessionContext
+		json.NewDecoder(resp.Body).Decode(&sessResp)
+
+		if sessResp.User.Name != "Test User" || sessResp.User.Role != "admin" {
+			t.Errorf("unexpected session context user: %+v", sessResp.User)
+		}
+	})
+
+	// 2. GET /api/v1/session - Negative Case
+	t.Run("GET Session - Negative (Missing Header)", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", resp.StatusCode)
+		}
+	})
+
+	// 3. GET /api/v1/session - Negative Case (Invalid Token)
+	t.Run("GET Session - Negative (Invalid Token)", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("Authorization", "Bearer invalid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", resp.StatusCode)
+		}
+	})
+
+	// 4. GET /api/v1/entities - Positive Case
+	t.Run("GET Entities list", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var listResp models.EntityListResponse
+		json.NewDecoder(resp.Body).Decode(&listResp)
+
+		if len(listResp.Items) != 1 || listResp.Items[0].ID != "ent-1" {
+			t.Errorf("unexpected entity items list: %+v", listResp)
+		}
+	})
+
+	// 5. POST /api/v1/entities - Positive Case
+	t.Run("POST Create Entity", func(t *testing.T) {
+		payload := `{"name":"New Root Entity", "description":"Root Level Entity"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/entities", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected status 201 Created, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.EntityDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.Name != "New Root Entity" {
+			t.Errorf("expected entity name New Root Entity, got: %s", detailResp.Name)
+		}
+	})
+
+	// 6. POST /api/v1/entities - Negative Case (Missing Name)
+	t.Run("POST Create Entity - Missing Name", func(t *testing.T) {
+		payload := `{"description":"Entity without name"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/entities", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", resp.StatusCode)
+		}
+	})
+
+	// 7. GET /api/v1/entities/:entityId - Positive Case
+	t.Run("GET Entity Detail", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities/ent-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.EntityDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.ID != "ent-1" {
+			t.Errorf("expected entity ID ent-1, got: %s", detailResp.ID)
+		}
+	})
+
+	// 8. GET /api/v1/entities/:entityId - Negative Case
+	t.Run("GET Entity Detail - Non-Existent", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities/non-existent", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 9. PUT /api/v1/entities/:entityId - Positive Case
+	t.Run("PUT Update Entity", func(t *testing.T) {
+		payload := `{"name":"Updated Entity Title"}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/entities/ent-1", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.EntityDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.Name != "Updated Entity Title" {
+			t.Errorf("expected entity name Updated Entity Title, got: %s", detailResp.Name)
+		}
+	})
+
+	// 10. PUT /api/v1/entities/:entityId - Negative Case
+	t.Run("PUT Update Entity - Non-Existent", func(t *testing.T) {
+		payload := `{"name":"Fail Me"}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/entities/non-existent", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 11. DELETE /api/v1/entities/:entityId - Positive Case
+	t.Run("DELETE Entity", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/entities/ent-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200 or 204, got %d", resp.StatusCode)
+		}
+	})
+
+	// 12. GET /api/v1/venues - Positive Case
+	t.Run("GET Venues list", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/venues", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var listResp models.VenueListResponse
+		json.NewDecoder(resp.Body).Decode(&listResp)
+
+		if len(listResp.Items) != 1 || listResp.Items[0].ID != "ven-1" {
+			t.Errorf("unexpected venues items list: %+v", listResp)
+		}
+	})
+
+	// 13. POST /api/v1/venues - Positive Case
+	t.Run("POST Create Venue", func(t *testing.T) {
+		payload := `{"name":"New Root Venue", "description":"Root Level Venue"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/venues", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected status 201 Created, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.VenueDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.Name != "New Root Venue" {
+			t.Errorf("expected venue name New Root Venue, got: %s", detailResp.Name)
+		}
+	})
+
+	// 14. POST /api/v1/venues - Negative Case (Missing Name)
+	t.Run("POST Create Venue - Missing Name", func(t *testing.T) {
+		payload := `{"description":"Venue without name"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/venues", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", resp.StatusCode)
+		}
+	})
+
+	// 15. GET /api/v1/venues/:venueId - Positive Case
+	t.Run("GET Venue Detail", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/venues/ven-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.VenueDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.ID != "ven-1" {
+			t.Errorf("expected venue ID ven-1, got: %s", detailResp.ID)
+		}
+	})
+
+	// 16. GET /api/v1/venues/:venueId - Negative Case
+	t.Run("GET Venue Detail - Non-Existent", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/venues/non-existent", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 17. PUT /api/v1/venues/:venueId - Positive Case
+	t.Run("PUT Update Venue", func(t *testing.T) {
+		payload := `{"name":"Updated Venue Name", "description":"Updated Description"}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/venues/ven-1", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.VenueDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.Name != "Updated Venue Name" {
+			t.Errorf("expected venue name Updated Venue Name, got: %s", detailResp.Name)
+		}
+	})
+
+	// 18. PUT /api/v1/venues/:venueId - Negative Case
+	t.Run("PUT Update Venue - Non-Existent", func(t *testing.T) {
+		payload := `{"name":"Updated Venue Name"}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/venues/non-existent", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 19. DELETE /api/v1/venues/:venueId - Positive Case
+	t.Run("DELETE Venue", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/venues/ven-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200 or 204, got %d", resp.StatusCode)
+		}
+	})
+
+	// 20. GET /api/v1/entities/:entityId/venues - Positive Case
+	t.Run("GET Entity Venues list", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities/ent-1/venues", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var listResp models.VenueListResponse
+		json.NewDecoder(resp.Body).Decode(&listResp)
+
+		if len(listResp.Items) != 1 || listResp.Items[0].ID != "ven-1" {
+			t.Errorf("unexpected venue items list: %+v", listResp)
+		}
+	})
+
+	// 21. POST /api/v1/entities/:entityId/venues - Positive Case
+	t.Run("POST Create Entity Venue", func(t *testing.T) {
+		payload := `{"name":"New Venue Under Entity", "description":"Entity Child Venue"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/entities/ent-1/venues", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected status 201 Created, got %d", resp.StatusCode)
+		}
+
+		var detailResp models.VenueDetail
+		json.NewDecoder(resp.Body).Decode(&detailResp)
+
+		if detailResp.Name != "New Venue Under Entity" {
+			t.Errorf("expected venue name New Venue Under Entity, got: %s", detailResp.Name)
+		}
+	})
+
+	// 22. POST /api/v1/entities/:entityId/venues - Negative Case (Missing Name)
+	t.Run("POST Create Entity Venue - Missing Name", func(t *testing.T) {
+		payload := `{"description":"Entity Child Venue"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/entities/ent-1/venues", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", resp.StatusCode)
+		}
+	})
+
+	// 23. GET /api/v1/users/:userId/assignments - Positive Case
+	t.Run("GET User Scoped Assignments", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/assignments", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var assignmentsResp models.UserAssignmentsResponse
+		json.NewDecoder(resp.Body).Decode(&assignmentsResp)
+
+		if len(assignmentsResp.Items) != 1 || assignmentsResp.Items[0].ScopeID != "ent-1" {
+			t.Errorf("expected assignment to ent-1, got: %+v", assignmentsResp)
+		}
+	})
+
+	// 24. POST /api/v1/users/:userId/assignments - Positive Case
+	t.Run("POST Create User Scoped Assignment", func(t *testing.T) {
+		payload := `{"scopeType":"entity", "scopeId":"ent-1", "role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected status 201 Created, got %d", resp.StatusCode)
+		}
+
+		var assignment models.UserAssignment
+		json.NewDecoder(resp.Body).Decode(&assignment)
+
+		if assignment.ScopeID != "ent-1" || assignment.Role != "admin" {
+			t.Errorf("unexpected assignment response: %+v", assignment)
+		}
+	})
+
+	// 25. POST /api/v1/users/:userId/assignments - Negative Case (Invalid payload / missing fields)
+	t.Run("POST Create Assignment - Missing Fields", func(t *testing.T) {
+		payload := `{"scopeType":"entity"}` // Missing role and scopeId
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", resp.StatusCode)
+		}
+	})
+
+	// 26. DELETE /api/v1/users/:userId/assignments/:assignmentId - Positive Case
+	t.Run("DELETE User Scoped Assignment", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/users/user-123/assignments/rol-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200 or 204, got %d", resp.StatusCode)
+		}
+	})
+
+	// 27. DELETE /api/v1/users/:userId/assignments/:assignmentId - Negative Case (404 Not Found)
+	t.Run("DELETE Assignment - Non-Existent", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/users/user-123/assignments/non-existent", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 28. GET /api/v1/users/:userId/access-policy - Positive Case
+	t.Run("GET User Scoped Access Policy", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var policyResp models.UserAccessPolicy
+		json.NewDecoder(resp.Body).Decode(&policyResp)
+
+		if policyResp.Scope != "entity" || policyResp.RoleTemplate != "admin" {
+			t.Errorf("unexpected access policy details: %+v", policyResp)
+		}
+		if len(policyResp.ResourcePermissions) != 2 {
+			t.Errorf("expected 2 resource permissions, got: %d", len(policyResp.ResourcePermissions))
+		}
+	})
+
+	// 29. GET /api/v1/users/:userId/access-policy - Negative Case (User/Assignment Not Found)
+	t.Run("GET Access Policy - Assignment Not Found", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/unknown-user/access-policy?scope=entity&entityId=ent-1", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 30. PUT /api/v1/users/:userId/access-policy - Positive Case
+	t.Run("PUT Update User Scoped Access Policy", func(t *testing.T) {
+		payload := `{
+			"scope": "entity",
+			"entityId": "ent-1",
+			"roleTemplate": "admin",
+			"resourcePermissions": [
+				{
+					"resource": "configuration",
+					"policies": ["READ", "MODIFY"]
+				}
+			]
+		}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var policyResp models.UserAccessPolicy
+		json.NewDecoder(resp.Body).Decode(&policyResp)
+
+		if len(policyResp.ResourcePermissions) != 1 || policyResp.ResourcePermissions[0].Resource != "configuration" {
+			t.Errorf("unexpected updated access policy: %+v", policyResp)
+		}
+	})
+
+	// 31. PUT /api/v1/users/:userId/access-policy - Negative Case (User/Assignment Not Found)
+	t.Run("PUT Access Policy - Assignment Not Found", func(t *testing.T) {
+		payload := `{
+			"scope": "entity",
+			"entityId": "ent-1",
+			"roleTemplate": "admin",
+			"resourcePermissions": [
+				{
+					"resource": "configuration",
+					"policies": ["READ"]
+				}
+			]
+		}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/unknown-user/access-policy", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+}
