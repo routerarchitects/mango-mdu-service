@@ -79,6 +79,11 @@ func TestGranularHandlers(t *testing.T) {
 
 		// 2. Roles list/creation
 		if r.URL.Path == "/api/v1/managementRole" {
+			if r.Header.Get("X-Request-Id") == "downstream-error" {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"error":"mock prov server error"}`))
+				return
+			}
 			list := []provclient.ProvManagementRole{
 				{
 					Info: provclient.ProvObjectInfo{
@@ -301,6 +306,11 @@ func TestGranularHandlers(t *testing.T) {
 			token := r.URL.Query().Get("token")
 			if token == "invalid-token" {
 				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if token == "downstream-error-token" {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"error":"mock sec server error"}`))
 				return
 			}
 			userInfo := secclient.UserInfo{
@@ -1093,6 +1103,52 @@ func TestGranularHandlers(t *testing.T) {
 		}
 		if listInvalid.Metadata.Offset != 0 {
 			t.Errorf("expected fallback offset to be 0, got %d", listInvalid.Metadata.Offset)
+		}
+	})
+
+	// 37. GET /api/v1/users/:userId/access-policy - Validation error when entityId is missing for venue scope
+	t.Run("GET Access Policy - Validation error when entityId is missing for venue scope", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=venue&venueId=ven-1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 38. GET /api/v1/users/:userId/access-policy - Downstream connection failure mapping to 503
+	t.Run("GET Access Policy - Downstream PROV error maps to 503", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("X-Request-Id", "downstream-error")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
+		}
+	})
+
+	// 39. GET /api/v1/session - Downstream SEC error maps to 503
+	t.Run("GET Session - Downstream SEC error maps to 503", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("Authorization", "Bearer downstream-error-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
 		}
 	})
 }

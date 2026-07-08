@@ -151,8 +151,21 @@ func (s *SessionService) GetSessionContext(ctx context.Context, token string) (*
 		LastLoginAt: &now,
 	}
 
-	// 5. Build permissions
-	permissions := getEffectivePermissions(userInfo.UserRole)
+	// 5. Build permissions dynamically from active assignment policy in PROV
+	var permissions models.EffectivePermissionSet
+	if len(assignments) > 0 {
+		activePolicyID := assignments[0].ManagementPolicyID
+		policy, err := s.provClient.GetPolicy(reqCtx, activePolicyID)
+		if err == nil {
+			permissions = derivePermissionsFromPolicy(policy)
+		} else {
+			// Fallback to static if policy fetching fails
+			permissions = getEffectivePermissions(userInfo.UserRole)
+		}
+	} else {
+		// Fallback to static if no assignments are active
+		permissions = getEffectivePermissions(userInfo.UserRole)
+	}
 
 	// 6. Active scope selection
 	var activeScope *models.ScopePathItem
@@ -207,4 +220,76 @@ func getEffectivePermissions(role string) models.EffectivePermissionSet {
 			Devices:        models.RbacDecision{Allowed: false, Mode: "hidden"},
 		}
 	}
+}
+
+func derivePermissionsFromPolicy(policy *prov.ProvManagementPolicy) models.EffectivePermissionSet {
+	res := models.EffectivePermissionSet{
+		Hierarchy:      models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Users:          models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Billing:        models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Configurations: models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Devices:        models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+	}
+
+	if policy == nil {
+		return res
+	}
+
+	checkAccess := func(targetResources []string) (allowed bool, mode string) {
+		hasRead := false
+		hasWrite := false
+		for _, entry := range policy.Entries {
+			match := false
+			for _, r := range entry.Resources {
+				for _, tr := range targetResources {
+					if r == tr {
+						match = true
+						break
+					}
+				}
+				if match {
+					break
+				}
+			}
+			if match {
+				for _, acc := range entry.Access {
+					if acc == "MODIFY" || acc == "DELETE" {
+						hasWrite = true
+					} else if acc == "READ" {
+						hasRead = true
+					}
+				}
+			}
+		}
+		if hasWrite {
+			return true, "interactive"
+		}
+		if hasRead {
+			return true, "read_only"
+		}
+		return false, "hidden"
+	}
+
+	// Hierarchy
+	if allowed, mode := checkAccess([]string{"entity", "venue"}); allowed {
+		res.Hierarchy = models.RbacDecision{Allowed: true, Mode: mode}
+	}
+	// Users
+	if allowed, mode := checkAccess([]string{"operator", "managementRole", "managementPolicy"}); allowed {
+		res.Users = models.RbacDecision{Allowed: true, Mode: mode}
+	}
+	// Billing
+	if allowed, mode := checkAccess([]string{"billing"}); allowed {
+		res.Billing = models.RbacDecision{Allowed: true, Mode: mode}
+	}
+	// Configurations
+	if allowed, mode := checkAccess([]string{"configuration"}); allowed {
+		res.Configurations = models.RbacDecision{Allowed: true, Mode: mode}
+	}
+	// Devices
+	if allowed, mode := checkAccess([]string{"inventory"}); allowed {
+		res.Devices = models.RbacDecision{Allowed: true, Mode: mode}
+	}
+
+	return res
 }

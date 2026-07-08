@@ -59,6 +59,8 @@ func mapCodeToHttpStatus(code apperror.Code) int {
 		return http.StatusConflict
 	case apperror.Code("TIMEOUT"), apperror.Code("DOWNSTREAM_TIMEOUT"):
 		return http.StatusGatewayTimeout
+	case apperror.Code("DOWNSTREAM_UNAVAILABLE"):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
@@ -78,6 +80,8 @@ func mapCodeToDesc(code apperror.Code) string {
 		return "conflict"
 	case apperror.Code("TIMEOUT"), apperror.Code("DOWNSTREAM_TIMEOUT"):
 		return "downstream_timeout"
+	case apperror.Code("DOWNSTREAM_UNAVAILABLE"):
+		return "service_unavailable"
 	default:
 		return "internal_error"
 	}

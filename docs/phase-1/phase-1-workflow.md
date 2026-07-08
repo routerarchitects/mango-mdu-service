@@ -96,8 +96,7 @@ If request or correlation IDs are missing, MDU generates them and preserves them
 For user-context PROV workflows, MDU sends:
 
 ```http
-x-api: <mdu-service-api-key>
-x-authorization: Bearer <owsec-token>
+Authorization: Bearer <owsec-token> (or X-API-KEY / X-INTERNAL-NAME for S2S calls)
 x-request-id: <request-id>
 x-correlation-id: <correlation-id>
 ```
@@ -153,8 +152,7 @@ Once the token is valid, MDU determines which Phase 1 workflow is being executed
 
 If the workflow depends on PROV-owned data or authorization, MDU calls PROV with:
 
-- service authentication (`x-api`)
-- forwarded user context (`x-authorization`)
+- forwarded user context (`Authorization`) or S2S credentials
 - trace headers (`x-request-id`, `x-correlation-id`)
 
 ## Step 6 — PROV evaluates access and returns truth
@@ -238,8 +236,7 @@ The exact MDU route may vary, but the read workflow is the same.
 3. MDU validates request parameters
 4. MDU decides which PROV route family is needed
 5. MDU calls PROV with:
-   - `x-api`
-   - `x-authorization`
+   - `Authorization` (or S2S headers if no user context)
    - request/correlation IDs
 6. PROV evaluates caller access and fetches domain truth
 7. PROV returns the result or an access failure
@@ -325,8 +322,7 @@ This section describes the mutation flow only for approved Phase 1 cases. It mus
    - basic business input rules that can be checked locally
 3. MDU determines which PROV-owned domain is being changed
 4. MDU forwards the request to PROV using:
-   - `x-api`
-   - `x-authorization`
+   - `Authorization` (or S2S headers if no user context)
    - request/correlation IDs
 5. PROV evaluates permissions and business rules
 6. PROV applies the mutation if allowed
@@ -408,7 +404,7 @@ The MDU API contract distinguishes between two different types of roles:
 
 #### Conceptual Division: Assignments vs. Access Policies
 *   **User Scope Assignments (`/assignments`):** This manages the **user lifecycle and scope binding** (establishing *who* is assigned to *what node* in the hierarchy tree and in *what general role*).
-    *   *Usage*: Call `POST /assignments` when first binding a user to an entity or venue. MDU will automatically create the dedicated role/policy and populate it with default permission entries matching the chosen role template (e.g., `admin` gets full permissions, while `installer` gets `READ`/`MODIFY` configuration and `READ` hierarchy).
+    *   *Usage*: Call `POST /assignments` when first binding a user to an entity or venue. MDU will automatically create the dedicated role/policy. The policy is created without any default resource permissions, meaning they must be explicitly assigned via `PUT /access-policy`.
     *   *Revocation*: Call `DELETE /assignments/{id}` to remove the assignment and delete both the role and policy downstream.
 *   **User Access Policies (`/access-policy`):** This manages **fine-grained permission overrides**.
     *   *Usage*: Call `GET /access-policy` to fetch current active permissions for an assignment, and call `PUT /access-policy` to customize/update specific resource access lists (e.g., restricting an `admin` user from performing `DELETE` operations on configuration files).
@@ -607,7 +603,7 @@ UI
  -> call MDU with bearer token
  -> MDU validates token through OWSEC
  -> MDU validates request
- -> MDU calls PROV with x-api + x-authorization
+ -> MDU calls PROV with user context (Authorization) or S2S credentials
  -> PROV resolves access and returns source-of-truth data
  -> MDU normalizes response
  -> UI receives Mango-facing contract

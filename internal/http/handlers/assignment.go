@@ -78,8 +78,8 @@ func (h *AssignmentHandler) GetAccessPolicy(c fiber.Ctx) error {
 	entityID := c.Query("entityId")
 	venueID := c.Query("venueId")
 
-	if scope == "" || (scope == "entity" && entityID == "") || (scope == "venue" && venueID == "") {
-		return apperror.New(apperror.CodeInvalidInput, "scope, entityId (if scope=entity), or venueId (if scope=venue) are required")
+	if scope == "" || entityID == "" || (scope == "venue" && venueID == "") {
+		return apperror.New(apperror.CodeInvalidInput, "scope and entityId are required; venueId is additionally required if scope=venue")
 	}
 
 	resp, err := h.service.GetAccessPolicy(reqCtx, userID, scope, entityID, venueID)
@@ -98,8 +98,8 @@ func (h *AssignmentHandler) UpdateAccessPolicy(c fiber.Ctx) error {
 		return apperror.New(apperror.CodeInvalidInput, "invalid payload request")
 	}
 
-	if req.Scope == "" || (req.Scope == "entity" && req.EntityID == "") || (req.Scope == "venue" && req.VenueID == "") {
-		return apperror.New(apperror.CodeInvalidInput, "scope, entityId (if scope=entity), or venueId (if scope=venue) are required")
+	if req.Scope == "" || req.EntityID == "" || (req.Scope == "venue" && req.VenueID == "") {
+		return apperror.New(apperror.CodeInvalidInput, "scope and entityId are required; venueId is additionally required if scope=venue")
 	}
 
 	resp, err := h.service.UpdateAccessPolicy(reqCtx, userID, &req)

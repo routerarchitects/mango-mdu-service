@@ -39,7 +39,7 @@ Phase 1 includes:
 - complete resource management wrapper APIs (entities, venues) delegating state persistence to PROV.
 - user-scoped assignment APIs (for user roles and access scopes) and access-policy management.
 - service-to-service downstream calls using internal service credentials.
-- forwarding user bearer context to PROV using `x-authorization` where required.
+- forwarding user bearer context to PROV using `Authorization` where required.
 - access-summary style workflows where PROV remains the RBAC decision-maker.
 - normalized request validation.
 - normalized error handling, supporting return of `401`, `403`, `404`, `409`, and `503` responses where appropriate in a stable `ApiError` envelope.
@@ -132,7 +132,7 @@ Phase 1 must follow these rules:
   - `X-Correlation-Id`: a tracking identifier linking requests across distributed system components, set to `X-Request-Id` or generated if absent.
 - MDU validates the token before protected business logic (when enabled via the `AUTH_ENABLED` configuration)
 - MDU calls downstreams using service credentials such as `x-api`
-- MDU forwards the user token to PROV using `x-authorization` where PROV needs user context. MDU propagates tracing headers downstream where applicable; if downstream services do not accept them explicitly, MDU still uses them for internal observability/log correlation.
+- MDU forwards the user token to PROV using `Authorization` where PROV needs user context. MDU propagates tracing headers downstream where applicable; if downstream services do not accept them explicitly, MDU still uses them for internal observability/log correlation.
 - PROV remains responsible for RBAC and scope decisions
 - MDU must not create a second source of truth for access control
 
@@ -251,8 +251,7 @@ These are downstream route families MDU is expected to use for Phase 1 foundatio
 For Phase 1 PROV-backed workflows, MDU shall call PROV using:
 
 ```http
-x-api: <mdu-service-api-key>
-x-authorization: Bearer <owsec-token>
+Authorization: Bearer <owsec-token> (or X-API-KEY / X-INTERNAL-NAME for S2S calls)
 x-request-id: <request-id>
 x-correlation-id: <correlation-id>
 ```
@@ -304,7 +303,7 @@ For Phase 1, the OWSEC integration must define and implement:
 For Phase 1, the PROV integration must define and implement:
 
 - service-auth model
-- `x-authorization` forwarding behavior where required
+- `Authorization` forwarding behavior where required
 - timeout behavior
 - retry behavior where safe
 - response normalization into Mango-facing contracts

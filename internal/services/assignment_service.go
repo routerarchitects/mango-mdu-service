@@ -364,9 +364,19 @@ func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID s
 		}
 	}
 
+	resolvedEntityID := entityID
+	if scope == "venue" && venueID != "" {
+		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
+		if err == nil {
+			if v, ok := venueMap[venueID]; ok && v.Entity != "" {
+				resolvedEntityID = v.Entity
+			}
+		}
+	}
+
 	return &models.UserAccessPolicy{
 		Scope:               scope,
-		EntityID:            entityID,
+		EntityID:            resolvedEntityID,
 		VenueID:             venueID,
 		RoleTemplate:        targetRole.Info.Name,
 		ResourcePermissions: resourcePermissions,
@@ -454,7 +464,23 @@ func (s *AssignmentService) UpdateAccessPolicy(reqCtx prov.RequestContext, userI
 		return nil, err
 	}
 
-	return policy, nil
+	resolvedEntityID := policy.EntityID
+	if policy.Scope == "venue" && policy.VenueID != "" {
+		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
+		if err == nil {
+			if v, ok := venueMap[policy.VenueID]; ok && v.Entity != "" {
+				resolvedEntityID = v.Entity
+			}
+		}
+	}
+
+	return &models.UserAccessPolicy{
+		Scope:               policy.Scope,
+		EntityID:            resolvedEntityID,
+		VenueID:             policy.VenueID,
+		RoleTemplate:        targetRole.Info.Name,
+		ResourcePermissions: policy.ResourcePermissions,
+	}, nil
 }
 
 func stringsSplit(s, sep string) []string {

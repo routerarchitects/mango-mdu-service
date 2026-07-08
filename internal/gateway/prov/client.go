@@ -92,6 +92,7 @@ func (c *Client) sendRequest(reqCtx RequestContext, method, path string, body io
 		req.Header.Set("X-API-KEY", apiKey)
 		req.Header.Set("X-INTERNAL-NAME", c.internalName)
 	}
+
 	if reqCtx.RequestID != "" {
 		req.Header.Set("X-Request-Id", reqCtx.RequestID)
 	}
@@ -101,7 +102,13 @@ func (c *Client) sendRequest(reqCtx RequestContext, method, path string, body io
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "owprov request failed", err)
+		return nil, apperror.Wrap(apperror.Code("DOWNSTREAM_UNAVAILABLE"), "owprov request failed", err)
+	}
+
+	if resp.StatusCode >= 500 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, apperror.New(apperror.Code("DOWNSTREAM_UNAVAILABLE"), fmt.Sprintf("owprov returned status %d: %s", resp.StatusCode, string(body)))
 	}
 
 	return resp, nil

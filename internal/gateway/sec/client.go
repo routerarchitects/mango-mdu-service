@@ -104,7 +104,13 @@ func (c *Client) sendRequest(ctx context.Context, method, path string, rawToken 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "owsec request failed", err)
+		return nil, apperror.Wrap(apperror.Code("DOWNSTREAM_UNAVAILABLE"), "owsec request failed", err)
+	}
+
+	if resp.StatusCode >= 500 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, apperror.New(apperror.Code("DOWNSTREAM_UNAVAILABLE"), fmt.Sprintf("owsec returned status %d: %s", resp.StatusCode, string(body)))
 	}
 
 	return resp, nil
