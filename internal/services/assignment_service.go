@@ -507,5 +507,81 @@ func stringsSplit(s, sep string) []string {
 }
 
 func getDefaultPolicyEntries(role string, userID string, scopeType string, scopeID string) []prov.ProvManagementPolicyEntry {
-	return []prov.ProvManagementPolicyEntry{}
+	var policyJSON string
+	if scopeType == "entity" {
+		policyJSON = fmt.Sprintf(`{"type":"entity","entityId":"%s","includeVenues":true,"includeChildEntities":true}`, scopeID)
+	} else if scopeType == "venue" {
+		policyJSON = fmt.Sprintf(`{"type":"venue","venueId":"%s","includeVenues":true,"includeChildEntities":true}`, scopeID)
+	}
+
+	allResources := []string{"entity", "venue", "operator", "inventory", "configuration", "managementPolicy", "managementRole"}
+
+	switch role {
+	case "root", "admin", "system":
+		// Full access to all resources
+		return []prov.ProvManagementPolicyEntry{
+			{
+				Users:     []string{userID},
+				Resources: allResources,
+				Access:    []string{"READ", "LIST", "CREATE", "UPDATE", "MODIFY", "DELETE"},
+				Policy:    policyJSON,
+			},
+		}
+	case "csr":
+		// Read-only to all resources
+		return []prov.ProvManagementPolicyEntry{
+			{
+				Users:     []string{userID},
+				Resources: allResources,
+				Access:    []string{"READ", "LIST"},
+				Policy:    policyJSON,
+			},
+		}
+	case "installer":
+		// Read/Write configuration and inventory
+		return []prov.ProvManagementPolicyEntry{
+			{
+				Users:     []string{userID},
+				Resources: []string{"configuration", "inventory"},
+				Access:    []string{"READ", "LIST", "UPDATE", "MODIFY"},
+				Policy:    policyJSON,
+			},
+		}
+	case "noc":
+		// Read-only for structural, Read/Write for configuration and inventory
+		return []prov.ProvManagementPolicyEntry{
+			{
+				Users:     []string{userID},
+				Resources: []string{"entity", "venue", "operator", "managementPolicy", "managementRole"},
+				Access:    []string{"READ", "LIST"},
+				Policy:    policyJSON,
+			},
+			{
+				Users:     []string{userID},
+				Resources: []string{"configuration", "inventory"},
+				Access:    []string{"READ", "LIST", "UPDATE", "MODIFY"},
+				Policy:    policyJSON,
+			},
+		}
+	case "accounting":
+		// Read-only to structural resources
+		return []prov.ProvManagementPolicyEntry{
+			{
+				Users:     []string{userID},
+				Resources: []string{"entity", "venue", "operator", "managementPolicy", "managementRole"},
+				Access:    []string{"READ", "LIST"},
+				Policy:    policyJSON,
+			},
+		}
+	default:
+		// Default fallback is read-only for safety
+		return []prov.ProvManagementPolicyEntry{
+			{
+				Users:     []string{userID},
+				Resources: allResources,
+				Access:    []string{"READ", "LIST"},
+				Policy:    policyJSON,
+			},
+		}
+	}
 }
