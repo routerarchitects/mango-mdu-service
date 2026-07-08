@@ -46,7 +46,7 @@ OWSEC is the authoritative owner for user identity (user CRUD, login, token vali
 The downstream trust model is:
 
 1. MDU authenticates to downstream services using service-to-service credentials such as `x-api` or equivalent.
-2. MDU forwards the end-user bearer token to downstream services using `x-authorization` when the downstream service requires user context.
+2. MDU forwards the end-user bearer token to downstream services using the `Authorization` header when the downstream service requires user context.
 3. The downstream service, especially PROV, interprets that forwarded user context and enforces its own authorization and RBAC.
 4. MDU does not resolve PROV RBAC locally and does not persist RBAC truth.
 
@@ -61,7 +61,7 @@ OWSEC remains the system of record/authoritative owner for user accounts. PROV r
 3. Protected MDU business APIs shall accept `Authorization: Bearer <owsec-token>`.
 4. MDU shall validate the inbound bearer token using OWSEC-owned validation mechanisms before executing protected business APIs.
 5. MDU shall call downstream private APIs using trusted service credentials such as `x-api` or equivalent.
-6. MDU shall forward the inbound user token to downstream private APIs using `x-authorization` when the downstream service needs user context.
+6. MDU shall forward the inbound user token to downstream private/public APIs using the `Authorization` header when the downstream service needs user context.
 7. PROV shall resolve user, operator, scope, role, policy, and RBAC decisions using its own source-of-truth data.
 8. MDU shall not become a separate RBAC, hierarchy, operator, user, inventory, configuration, billing, topology, or analytics source of truth.
 9. MDU shall normalize downstream responses and errors into versioned UI-facing contracts.
@@ -146,13 +146,12 @@ MDU validates the token with OWSEC before business orchestration. Validation sha
 MDU calls downstream services as a trusted internal service and forwards user context separately when required.
 
 ```http
-x-api: <mdu-service-api-key>
-x-authorization: Bearer <owsec-token>
+Authorization: Bearer <owsec-token> (or X-API-KEY / X-INTERNAL-NAME for S2S calls)
 x-request-id: <request-id>
 x-correlation-id: <correlation-id>
 ```
 
-The downstream service decides how to use `x-authorization`. For PROV, RBAC, scope, user, and operator checks are resolved inside PROV.
+The downstream service decides how to use the forwarded bearer token. For PROV, RBAC, scope, user, and operator checks are resolved inside PROV.
 
 ## 5.4 MDU-to-Billing Private Lane
 
@@ -269,8 +268,7 @@ OWSEC is the authoritative owner for user identity, login, token validation, tok
 MDU shall call PROV using service authentication and forwarded user context:
 
 ```http
-x-api: <mdu-service-api-key>
-x-authorization: Bearer <owsec-token>
+Authorization: Bearer <owsec-token> (or X-API-KEY / X-INTERNAL-NAME for S2S calls)
 ```
 
 PROV is responsible for resolving RBAC, scope, operator, and user permissions.
@@ -299,7 +297,7 @@ For user-facing billing workflows, the normal sequence is:
 
 1. UI calls MDU with `Authorization: Bearer <owsec-token>`.
 2. MDU validates the token with OWSEC.
-3. MDU calls PROV with service auth plus `x-authorization` to resolve RBAC and scope for the target operator, entity, or billing workflow.
+3. MDU calls PROV with the forwarded user token (`Authorization`) to resolve RBAC and scope for the target operator, entity, or billing workflow.
 4. If PROV authorizes the action, MDU calls Billing Service with `X-Internal-API-Key` plus actor, tenant, and trace headers.
 5. Billing Service returns Billing-owned data; MDU shapes the final Mango-facing response.
 
@@ -419,8 +417,7 @@ If `X-Correlation-Id` is absent, MDU shall use `X-Request-Id` as the correlation
 
 MDU shall propagate:
 
-- `x-api: <service credential>` or equivalent
-- `x-authorization: Bearer <owsec-token>` when user context is required by downstream
+- `Authorization: Bearer <owsec-token>` when user context is required by downstream, or S2S credentials (`X-API-KEY` / `X-INTERNAL-NAME`) if no user context is present
 - `x-request-id`
 - `x-correlation-id`
 - `X-Actor-Id`, `X-Actor-Type`, optional `X-Actor-Role`, and `X-Tenant-Id` for Billing Service workflows
@@ -430,7 +427,7 @@ MDU shall propagate:
 ## 9.4 Propagation Rules
 
 1. `Authorization` is the inbound UI-facing auth header.
-2. `x-authorization` is the downstream private user-context forwarding header.
+2. The user token is forwarded using the `Authorization` header downstream.
 3. `x-api` or equivalent is the machine-to-machine auth header.
 4. Downstream service credentials and end-user tokens serve different purposes and shall not be conflated.
 5. MDU shall not log raw token or secret values.
@@ -540,7 +537,7 @@ Phase 1 includes:
 - inbound OWSEC bearer-token validation.
 - direct OWSEC login boundary.
 - service-authenticated downstream calls.
-- `x-authorization` forwarding to downstream services.
+- `Authorization` context forwarding to downstream services.
 - token-backed session/bootstrap view APIs (where MDU acts as a northbound wrapper, not a login authority).
 - operator wrapper APIs and user-access orchestration APIs (assignments, access policies) as approved Phase 1 northbound wrapper contracts over downstream services.
 - complete resource management wrapper APIs (entities, venues, roles, policies) delegating state persistence to PROV.
@@ -771,7 +768,7 @@ Phase 5 includes:
 4. The UI calls MDU with `Authorization: Bearer <owsec-token>`.
 5. MDU validates the inbound token before protected business workflows.
 6. MDU calls downstream services with service authentication such as `x-api`.
-7. MDU forwards user context to downstream services using `x-authorization` where required.
+7. MDU forwards user context to downstream services using the `Authorization` header when the downstream service requires user context.
 8. OWSEC is the authoritative owner for user identity, login, token validation, token issuance, and user CRUD. PROV owns operators, hierarchy, policies, roles, RBAC, inventory ownership, and configuration ownership.
 9. Billing Service owns billing truth, while MDU owns the Mango-facing billing API contracts and orchestration path.
 10. OWGW owns live device runtime and command execution.

@@ -99,8 +99,7 @@ If request or correlation IDs are missing, MDU generates them and preserves them
 For user-context PROV workflows, MDU sends:
 
 ```http
-x-api: <mdu-service-api-key>
-x-authorization: Bearer <owsec-token>
+Authorization: Bearer <owsec-token>
 x-request-id: <request-id>
 x-correlation-id: <correlation-id>
 ```
@@ -159,8 +158,7 @@ Once the token is valid, MDU determines which Phase 1 workflow is being executed
 
 If the workflow depends on PROV-owned data or authorization, MDU calls PROV with:
 
-- service authentication (`x-api`)
-- forwarded user context (`x-authorization`)
+- forwarded user context (`Authorization`)
 - trace headers (`x-request-id`, `x-correlation-id`)
 
 ## Step 6 — PROV evaluates access and returns truth
@@ -247,8 +245,7 @@ The exact MDU route may vary, but the read workflow is the same.
 3. MDU validates request parameters
 4. MDU decides which PROV route family is needed
 5. MDU calls PROV with:
-   - `x-api`
-   - `x-authorization`
+   - `Authorization` (bearer token)
    - request/correlation IDs
 6. PROV evaluates caller access and fetches domain truth
 7. PROV returns the result or an access failure
@@ -339,8 +336,7 @@ This section describes the mutation flow only for approved Phase 1 cases. It mus
    - basic business input rules that can be checked locally
 3. MDU determines which PROV-owned domain is being changed
 4. MDU forwards the request to PROV using:
-   - `x-api`
-   - `x-authorization`
+   - `Authorization` (bearer token)
    - request/correlation IDs
 5. PROV evaluates permissions and business rules
 6. PROV applies the mutation if allowed
@@ -661,7 +657,7 @@ UI
  -> call MDU with bearer token
  -> MDU validates token through OWSEC
  -> MDU validates request
- -> MDU calls PROV with x-api + x-authorization
+ -> MDU calls PROV with bearer token in Authorization header
  -> PROV resolves access and returns source-of-truth data
  -> MDU normalizes response
  -> UI receives Mango-facing contract

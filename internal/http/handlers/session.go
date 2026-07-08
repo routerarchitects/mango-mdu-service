@@ -26,8 +26,8 @@ func (h *SessionHandler) GetSessionContext(c fiber.Ctx) error {
 		return apperror.New(apperror.CodeUnauthorized, "unauthorized")
 	}
 
-	ctx := c.Context()
-	sess, err := h.service.GetSessionContext(ctx, token)
+	reqCtx := buildRequestContext(c)
+	sess, err := h.service.GetSessionContext(reqCtx)
 	if err != nil {
 		return err
 	}

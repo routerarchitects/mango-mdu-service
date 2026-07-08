@@ -43,6 +43,12 @@ func TestGranularHandlers(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		if r.Header.Get("X-Request-Id") == "downstream-error" {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error":"mock prov server error"}`))
+			return
+		}
+
 		// 1. Entity and Venue lists
 		if r.URL.Path == "/api/v1/entity" && r.URL.Query().Get("getTree") == "true" {
 			json.NewEncoder(w).Encode(mockTree)
@@ -79,11 +85,6 @@ func TestGranularHandlers(t *testing.T) {
 
 		// 2. Roles list/creation
 		if r.URL.Path == "/api/v1/managementRole" {
-			if r.Header.Get("X-Request-Id") == "downstream-error" {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"error":"mock prov server error"}`))
-				return
-			}
 			list := []provclient.ProvManagementRole{
 				{
 					Info: provclient.ProvObjectInfo{
@@ -1264,6 +1265,22 @@ func TestGranularHandlers(t *testing.T) {
 
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 47. GET /api/v1/session - Downstream PROV error maps to 503
+	t.Run("GET Session - Downstream PROV error maps to 503", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("X-Request-Id", "downstream-error")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
 		}
 	})
 }

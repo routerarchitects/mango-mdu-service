@@ -168,9 +168,18 @@ func (s *HierarchyService) GetHierarchyTree(reqCtx prov.RequestContext, scopeEnt
 	}
 
 	// 2. Load all entities, venues, and roles to resolve summaries
-	entities, _ := s.provClient.ListEntities(reqCtx, 1000, 0)
-	venues, _ := s.provClient.ListVenues(reqCtx, 1000, 0)
-	roles, _ := s.provClient.ListRoles(reqCtx, 1000, 0)
+	entities, err := s.provClient.ListEntities(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	venues, err := s.provClient.ListVenues(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	entityMap := make(map[string]prov.ProvEntity)
 	for _, ent := range entities {

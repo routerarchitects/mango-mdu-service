@@ -64,8 +64,14 @@ func (s *AssignmentService) getLookupMaps(reqCtx prov.RequestContext) (map[strin
 		traverse(*tree, nil, "")
 	}
 
-	entities, _ := s.provClient.ListEntities(reqCtx, 1000, 0)
-	venues, _ := s.provClient.ListVenues(reqCtx, 1000, 0)
+	entities, err := s.provClient.ListEntities(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	venues, err := s.provClient.ListVenues(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	entityMap := make(map[string]prov.ProvEntity)
 	for _, ent := range entities {
