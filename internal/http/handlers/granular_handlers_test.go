@@ -1048,17 +1048,8 @@ func TestGranularHandlers(t *testing.T) {
 		}
 		defer respInvalid.Body.Close()
 
-		if respInvalid.StatusCode != http.StatusOK {
-			t.Errorf("expected status 200 for invalid query parameters, got %d", respInvalid.StatusCode)
-		}
-
-		var listInvalid models.EntityListResponse
-		json.NewDecoder(respInvalid.Body).Decode(&listInvalid)
-		if listInvalid.Metadata.Limit != 100 {
-			t.Errorf("expected fallback limit to be 100, got %d", listInvalid.Metadata.Limit)
-		}
-		if listInvalid.Metadata.Offset != 0 {
-			t.Errorf("expected fallback offset to be 0, got %d", listInvalid.Metadata.Offset)
+		if respInvalid.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 for invalid query parameters, got %d", respInvalid.StatusCode)
 		}
 	})
 
@@ -1093,17 +1084,8 @@ func TestGranularHandlers(t *testing.T) {
 		}
 		defer respInvalid.Body.Close()
 
-		if respInvalid.StatusCode != http.StatusOK {
-			t.Errorf("expected status 200 for invalid query parameters, got %d", respInvalid.StatusCode)
-		}
-
-		var listInvalid models.VenueListResponse
-		json.NewDecoder(respInvalid.Body).Decode(&listInvalid)
-		if listInvalid.Metadata.Limit != 100 {
-			t.Errorf("expected fallback limit to be 100, got %d", listInvalid.Metadata.Limit)
-		}
-		if listInvalid.Metadata.Offset != 0 {
-			t.Errorf("expected fallback offset to be 0, got %d", listInvalid.Metadata.Offset)
+		if respInvalid.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 for invalid query parameters, got %d", respInvalid.StatusCode)
 		}
 	})
 
@@ -1281,6 +1263,61 @@ func TestGranularHandlers(t *testing.T) {
 
 		if resp.StatusCode != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
+		}
+	})
+
+	// 48. GET /api/v1/entities - Invalid pagination returns 400
+	t.Run("GET Entities - Invalid pagination limit returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities?limit=-5", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("GET Entities - Invalid pagination offset returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities?offset=abc", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 49. GET /api/v1/venues - Invalid pagination returns 400
+	t.Run("GET Venues - Invalid pagination limit returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/venues?limit=-100", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 50. GET /api/v1/entities/:entityId/venues - Invalid pagination returns 400
+	t.Run("GET Entity Venues - Invalid pagination limit returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities/ent-1/venues?limit=xyz", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
 		}
 	})
 }

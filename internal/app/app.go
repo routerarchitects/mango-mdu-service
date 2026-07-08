@@ -29,6 +29,11 @@ type App struct {
 
 // New initializes all dependencies and builds the App.
 func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, error) {
+	// Validate discovery configuration dependency
+	if !cfg.Discovery.Enabled {
+		return nil, fmt.Errorf("discovery must be enabled to wire and register Phase 1 business API handlers")
+	}
+
 	// Validate authentication configuration dependencies
 	if cfg.Auth.Enabled {
 		if !cfg.Discovery.Enabled || !cfg.RPC.Enabled {

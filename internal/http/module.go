@@ -39,6 +39,14 @@ type Module struct {
 
 // NewModule initializes the HTTP apps, CORS, loggers, auth middlewares, and routes.
 func NewModule(deps Dependencies) (*Module, error) {
+	if deps.SessionHandler == nil ||
+		deps.HierarchyHandler == nil ||
+		deps.EntityHandler == nil ||
+		deps.VenueHandler == nil ||
+		deps.AssignmentHandler == nil {
+		return nil, fmt.Errorf("missing required business handlers for public API; discovery must be enabled")
+	}
+
 	authMiddleware, err := middleware.NewServiceAuth(
 		deps.AuthEnabled,
 		deps.PublicAuthConfig,

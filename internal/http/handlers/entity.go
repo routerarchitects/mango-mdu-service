@@ -33,16 +33,20 @@ func (h *EntityHandler) ListEntities(c fiber.Ctx) error {
 
 	limit := 100
 	if lStr := c.Query("limit"); lStr != "" {
-		if val, err := strconv.Atoi(lStr); err == nil {
-			limit = val
+		val, err := strconv.Atoi(lStr)
+		if err != nil || val < 0 {
+			return apperror.New(apperror.CodeInvalidInput, "invalid limit parameter")
 		}
+		limit = val
 	}
 
 	offset := 0
 	if oStr := c.Query("offset"); oStr != "" {
-		if val, err := strconv.Atoi(oStr); err == nil {
-			offset = val
+		val, err := strconv.Atoi(oStr)
+		if err != nil || val < 0 {
+			return apperror.New(apperror.CodeInvalidInput, "invalid offset parameter")
 		}
+		offset = val
 	}
 
 	resp, err := h.service.ListEntities(reqCtx, limit, offset)
