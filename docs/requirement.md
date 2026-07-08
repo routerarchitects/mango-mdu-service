@@ -566,24 +566,16 @@ Phase 1 does not require:
 
 All Phase 1 MDU business APIs listed below require validated bearer-token authentication (via the `Authorization: Bearer <token>` header, when enabled via the `AUTH_ENABLED` configuration). Requests with missing or invalid credentials must be rejected with a `401 Unauthorized` response when token validation is enabled. Support routes may have different authentication posture (specifically, `/livez` is unauthenticated). Additionally, all routes (with the exception of `/livez`) accept the optional `X-Request-Id` and `X-Correlation-Id` tracking headers to enable tracing across distributed system components.
 
-> **Operator Routing Strategy:**
-> For Phase 1, collection-level operator operations (specifically listing all operators and creating a new operator) are handled directly by hitting PROV endpoints (`GET /operator` and `POST /operator/{uuid}`). Due to PROV's downstream schema, the operator creation path is member-style: clients issue a `POST /operator/{uuid}` where `{uuid}` is set to the nil/zero UUID (`00000000-0000-0000-0000-000000000000` or `0`). Only individual operator operations (`GET`, `PUT`, `DELETE` under `/api/v1/operators/{operatorId}`) are routed through MDU. This hybrid routing model is mandatory: standard clients must call PROV directly for list/create operations, and call MDU for detailed operator member operations.
+### Part A: APIs Implemented by MDU Service Runtime
+These APIs are natively implemented and orchestrated by the `mango-mdu-service` Go codebase.
 
 #### 1. Session / Access Context (`Session` Tag)
-- `GET /api/v1/session` — Retrieve active session and effective access context.
+- `GET /api/v1/session` — Retrieve active session and effective access context (orchestrated across SEC and PROV).
 
-#### 2. Operators (`Operators` Tag)
-- `GET /api/v1/operators/{operatorId}` — Retrieve operator details.
-- `PUT /api/v1/operators/{operatorId}` — Update operator details.
-- `DELETE /api/v1/operators/{operatorId}` — Delete operator.
+#### 2. Hierarchy (`Hierarchy` Tag)
+- `GET /api/v1/hierarchy` — Retrieve full or scoped resource hierarchy tree (orchestrated).
 
-#### 3. Subscribers (`Subscribers` Tag)
-- `GET /api/v1/operators/{operatorId}/subscribers` — Retrieve a simple, unpaginated list of subscriber signup entries filtered by operator ID (constrained listing flow).
-
-#### 4. Hierarchy (`Hierarchy` Tag)
-- `GET /api/v1/hierarchy/tree` — Retrieve full or scoped resource hierarchy tree.
-
-#### 5. Entities (`Entities` Tag)
+#### 3. Entities (`Entities` Tag)
 - `GET /api/v1/entities` — List entities.
 - `POST /api/v1/entities` — Create a new entity.
 - `GET /api/v1/entities/{entityId}` — Retrieve details of a specific entity.
@@ -592,31 +584,45 @@ All Phase 1 MDU business APIs listed below require validated bearer-token authen
 - `GET /api/v1/entities/{entityId}/venues` — List venues under an entity.
 - `POST /api/v1/entities/{entityId}/venues` — Create a new venue under an entity.
 
-#### 6. Venues (`Venues` Tag)
+#### 4. Venues (`Venues` Tag)
 - `GET /api/v1/venues/{venueId}` — Retrieve venue details.
 - `PUT /api/v1/venues/{venueId}` — Update venue details.
 - `DELETE /api/v1/venues/{venueId}` — Delete venue.
 
-#### 7. Management Policies (`Management Policies` Tag)
+#### 5. Users / Scoped Assignments & Access (`Users` Tag)
+- `GET /api/v1/users/{userId}/assignments` — List resource assignments for a user.
+- `POST /api/v1/users/{userId}/assignments` — Assign resource (entity/venue) scope to a user (handles creation, updating/resolving existing roles, or no-op/idempotent success).
+- `DELETE /api/v1/users/{userId}/assignments/{assignmentId}` — Remove a user scope assignment.
+- `GET /api/v1/users/{userId}/access-policy` — Get user access policy (requires `scope`, `entityId`, and optional `venueId` query parameters).
+- `PUT /api/v1/users/{userId}/access-policy` — Update user access policy.
+
+---
+
+### Part B: Delegated Downstream APIs (Bypassing MDU, called directly on PROV)
+Standard client applications call these endpoints directly on the Provisioning service (`owprov` / PROV) or the Security service (`owsec` / SEC) using their active token. They are **not** implemented or exposed by the `mango-mdu-service` Go codebase runtime. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md) for full endpoint and request details.
+
+#### 1. Operators
+- `GET /api/v1/operators/{operatorId}` — Retrieve operator details.
+- `PUT /api/v1/operators/{operatorId}` — Update operator details.
+- `DELETE /api/v1/operators/{operatorId}` — Delete operator.
+- *Note: Collection-level operator operations (`GET /operator` and `POST /operator/{uuid}`) are also called directly on PROV.*
+
+#### 2. Subscribers
+- `GET /api/v1/operators/{operatorId}/subscribers` — Retrieve subscriber signup list for an operator (called directly as `GET /api/v1/signup` on PROV).
+
+#### 3. Management Policies
 - `GET /api/v1/policies` — List management policies.
 - `POST /api/v1/policies` — Create a new management policy.
 - `GET /api/v1/policies/{policyId}` — Retrieve details of a specific policy.
 - `PUT /api/v1/policies/{policyId}` — Update management policy details.
 - `DELETE /api/v1/policies/{policyId}` — Delete management policy.
 
-#### 8. Management Roles (`Management Roles` Tag)
+#### 4. Management Roles
 - `GET /api/v1/roles` — List management roles.
 - `POST /api/v1/roles` — Create a new management role.
 - `GET /api/v1/roles/{roleId}` — Retrieve details of a specific role.
 - `PUT /api/v1/roles/{roleId}` — Update management role details.
 - `DELETE /api/v1/roles/{roleId}` — Delete management role.
-
-#### 9. Users / Scoped Assignments & Access (`Users` Tag)
-- `GET /api/v1/users/{userId}/assignments` — List resource assignments for a user.
-- `POST /api/v1/users/{userId}/assignments` — Assign resource (entity/venue) scope to a user (handles creation, updating/resolving existing roles, or no-op/idempotent success).
-- `DELETE /api/v1/users/{userId}/assignments/{assignmentId}` — Remove a user scope assignment.
-- `GET /api/v1/users/{userId}/access-policy` — Get user access policy (requires `scope`, `entityId`, and optional `venueId` query parameters).
-- `PUT /api/v1/users/{userId}/access-policy` — Update user access policy.
 
 #### 10. Operational Support & Diagnostics (Support Routes)
 The MDU operational support surface is registered and exposed on both public and private port interfaces:

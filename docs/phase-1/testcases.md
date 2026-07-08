@@ -12,6 +12,7 @@ This document contains the approved testcase set for the public Phase 1 MDU Serv
 - Public northbound MDU APIs in this contract do **not** require `X-API-KEY` / `x-api` from callers.
 - Internal/private routes and internal authentication modes are intentionally out of scope for this testcase document.
 - `X-Request-Id` and `X-Correlation-Id` are optional request headers on documented protected routes.
+- **Direct-Callable / Pass-Through APIs (PROV Delegation):** Several northbound APIs defined in the OpenAPI contract (specifically: Operator member APIs, Subscriber listing, Management Policies, and Management Roles) are not implemented in the `mango-mdu-service` Go codebase runtime because they can be called directly on the Provisioning service (`owprov` / PROV). Test cases for these APIs represent expectations on the unified API surface, which is fulfilled downstream. Specific mappings for these direct-callable/passthrough routes are documented in [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 - All shared JSON error responses use the `ApiError` envelope:
   - `ErrorCode`
   - `ErrorDetails`
@@ -298,6 +299,9 @@ Important assertions:
 
 # API 5/19: Get Operator Detail
 
+> [!NOTE]
+> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
+
 ```http
 GET /api/v1/operators/{operatorId}
 ```
@@ -350,6 +354,9 @@ Important assertions:
 ---
 
 # API 6/19: Update Operator Detail
+
+> [!NOTE]
+> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 
 ```http
 PUT /api/v1/operators/{operatorId}
@@ -421,6 +428,9 @@ Important assertions:
 
 # API 7/19: Delete Operator
 
+> [!NOTE]
+> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
+
 ```http
 DELETE /api/v1/operators/{operatorId}
 ```
@@ -459,6 +469,9 @@ Success response:
 ---
 
 # API 8/19: List Subscribers for an Operator
+
+> [!NOTE]
+> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 
 ```http
 GET /api/v1/operators/{operatorId}/subscribers
@@ -521,7 +534,7 @@ Important assertions:
 # API 9/19: Get Visible Hierarchy Tree
 
 ```http
-GET /api/v1/hierarchy/tree
+GET /api/v1/hierarchy
 ```
 
 Purpose: Return the hierarchy visible to the caller.
@@ -1064,6 +1077,9 @@ Important assertions:
 
 # API 15/19: Management Policies
 
+> [!NOTE]
+> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
+
 ```http
 GET /api/v1/policies
 POST /api/v1/policies
@@ -1256,6 +1272,9 @@ Important assertions:
 ---
 
 # API 16/19: Management Roles
+
+> [!NOTE]
+> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 
 ```http
 GET /api/v1/roles

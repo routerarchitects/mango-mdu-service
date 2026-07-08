@@ -35,15 +35,22 @@ So Phase 1 is already a real integration phase with **OWSEC + PROV**.
 
 ## Main Phase 1 API Surface
 
-Phase 1 includes the following Mango-facing API families:
-
+### Part A: Natively Implemented MDU APIs
+These API families are natively implemented and orchestrated by the `mango-mdu-service` Go codebase runtime:
 - `GET /api/v1/session` — OWSEC is the authoritative owner for user identity; MDU calls PROV to fetch the authenticated user's Mango bootstrap context (operator scope, roles, hierarchy visibility) and composes the normalized `/session` response.
-- `/api/v1/operators/*` — Standard APIs for managing operators.
+- `/api/v1/hierarchy` — Retrieves the resource hierarchy tree.
 - `/api/v1/entities/*` — APIs for entity hierarchy management wrapper.
 - `/api/v1/venues/*` — APIs for venue management wrapper.
-- `/api/v1/policies/*` — APIs for management policies wrapper.
-- `/api/v1/roles/*` — APIs for management roles wrapper.
 - `/api/v1/users/*` — User assignments and access-policy orchestration (e.g. `GET /api/v1/users/{userId}/assignments` and `GET /api/v1/users/{userId}/access-policy`).
+
+### Part B: Delegated Downstream APIs (PROV Delegation / Bypassing MDU)
+These APIs are not implemented or exposed by the `mango-mdu-service` Go codebase runtime. Instead, client applications call them directly on the Provisioning service (`owprov` / PROV) or Security service (`owsec` / SEC) using their active token:
+- `/api/v1/operators/*` — Standard APIs for managing operator details (GET, PUT, DELETE operator member details, plus collection-level listing and creation).
+- `/api/v1/operators/{operatorId}/subscribers` — Operator-scoped subscriber listing (bypasses MDU to call PROV `/api/v1/signup` directly).
+- `/api/v1/policies/*` — APIs for management policies.
+- `/api/v1/roles/*` — APIs for management roles.
+
+Detailed mappings for these direct-callable/passthrough routes are specified in [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 
 ### Excluded APIs
 Contacts, subscriber management (invite/creation), and subscriber devices are not exposed as active MDU contract routes in Phase 1 (with the sole exception of `/api/v1/operators/{operatorId}/subscribers` for operator-scoped listing). They are managed downstream in PROV.
