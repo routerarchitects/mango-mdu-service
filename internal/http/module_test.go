@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -108,10 +108,10 @@ func TestModuleAuthenticationAndHeaderPropagation(t *testing.T) {
 		PrivateAuthConfig: auth.InternalAPIKeyConfig{
 			ExpectedAPIKey: "my-secret-internal-key",
 		},
-		SessionHandler:  sessionHandler,
-		HierarchyHandler: hierarchyHandler,
-		EntityHandler:    entityHandler,
-		VenueHandler:     venueHandler,
+		SessionHandler:    sessionHandler,
+		HierarchyHandler:  hierarchyHandler,
+		EntityHandler:     entityHandler,
+		VenueHandler:      venueHandler,
 		AssignmentHandler: assignmentHandler,
 	}
 
