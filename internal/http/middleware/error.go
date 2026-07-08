@@ -9,9 +9,9 @@ import (
 )
 
 type ApiErrorResponse struct {
-	ErrorCode        int    `json:"ErrorCode"`
-	ErrorDetails     string `json:"ErrorDetails"`
-	ErrorDescription string `json:"ErrorDescription"`
+	ErrorCode        int    `json:"errorCode"`
+	ErrorDetails     string `json:"errorDetails"`
+	ErrorDescription string `json:"errorDescription"`
 }
 
 func ErrorHandler(c fiber.Ctx, err error) error {

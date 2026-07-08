@@ -13,9 +13,9 @@ This document contains the approved testcase set for the public Phase 1 MDU Serv
 - Internal/private routes and internal authentication modes are intentionally out of scope for this testcase document.
 - `X-Request-Id` and `X-Correlation-Id` are optional request headers on documented protected routes.
 - All shared JSON error responses use the `ApiError` envelope:
-  - `ErrorCode`
-  - `ErrorDetails`
-  - `ErrorDescription`
+  - `errorCode`
+  - `errorDetails`
+  - `errorDescription`
 - For routes where the OpenAPI contract does not define a success response schema, this testcase document does not invent one.
 - `204 No Content` responses must not include a JSON body.
 - Pagination list APIs must validate:
@@ -1001,9 +1001,9 @@ Endpoint-specific `400` example:
 
 ```json
 {
-  "ErrorCode": 400,
-  "ErrorDetails": "The field 'scopeType' must be either 'entity' or 'venue'.",
-  "ErrorDescription": "Bad Request"
+  "errorCode": 400,
+  "errorDetails": "The field 'scopeType' must be either 'entity' or 'venue'.",
+  "errorDescription": "Bad Request"
 }
 ```
 
@@ -1011,9 +1011,9 @@ Endpoint-specific `409` example:
 
 ```json
 {
-  "ErrorCode": 409,
-  "ErrorDetails": "Cannot safely resolve requested assignment from existing downstream state.",
-  "ErrorDescription": "Conflict"
+  "errorCode": 409,
+  "errorDetails": "Cannot safely resolve requested assignment from existing downstream state.",
+  "errorDescription": "Conflict"
 }
 ```
 
@@ -1134,17 +1134,17 @@ Endpoint-specific `400` examples:
 
 ```json
 {
-  "ErrorCode": 400,
-  "ErrorDetails": "The required query parameter 'entityId' is missing.",
-  "ErrorDescription": "Bad Request"
+  "errorCode": 400,
+  "errorDetails": "The required query parameter 'entityId' is missing.",
+  "errorDescription": "Bad Request"
 }
 ```
 
 ```json
 {
-  "ErrorCode": 400,
-  "ErrorDetails": "The query parameter 'venueId' is required when scope is set to 'venue'.",
-  "ErrorDescription": "Bad Request"
+  "errorCode": 400,
+  "errorDetails": "The query parameter 'venueId' is required when scope is set to 'venue'.",
+  "errorDescription": "Bad Request"
 }
 ```
 
@@ -1152,9 +1152,9 @@ Endpoint-specific `404` example:
 
 ```json
 {
-  "ErrorCode": 404,
-  "ErrorDetails": "The access policy configuration for the target user at the specified scope does not exist.",
-  "ErrorDescription": "Not Found"
+  "errorCode": 404,
+  "errorDetails": "The access policy configuration for the target user at the specified scope does not exist.",
+  "errorDescription": "Not Found"
 }
 ```
 

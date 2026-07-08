@@ -598,9 +598,9 @@ paths:
                 invalidScopeType:
                   summary: Invalid scope type value
                   value:
-                    ErrorCode: 400
-                    ErrorDetails: "The field 'scopeType' must be either 'entity' or 'venue'."
-                    ErrorDescription: "Bad Request"
+                    errorCode: 400
+                    errorDetails: "The field 'scopeType' must be either 'entity' or 'venue'."
+                    errorDescription: "Bad Request"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
@@ -617,9 +617,9 @@ paths:
                 unresolvedConflict:
                   summary: True state conflict
                   value:
-                    ErrorCode: 409
-                    ErrorDetails: "Cannot safely resolve requested assignment from existing downstream state."
-                    ErrorDescription: "Conflict"
+                    errorCode: 409
+                    errorDetails: "Cannot safely resolve requested assignment from existing downstream state."
+                    errorDescription: "Conflict"
         '503':
           $ref: '#/components/responses/BackendUnavailableError'
 
@@ -680,15 +680,15 @@ paths:
                 missingEntityId:
                   summary: Missing entityId parameter
                   value:
-                    ErrorCode: 400
-                    ErrorDetails: "The required query parameter 'entityId' is missing."
-                    ErrorDescription: "Bad Request"
+                    errorCode: 400
+                    errorDetails: "The required query parameter 'entityId' is missing."
+                    errorDescription: "Bad Request"
                 missingVenueId:
                   summary: Venue scope missing venueId
                   value:
-                    ErrorCode: 400
-                    ErrorDetails: "The query parameter 'venueId' is required when scope is set to 'venue'."
-                    ErrorDescription: "Bad Request"
+                    errorCode: 400
+                    errorDetails: "The query parameter 'venueId' is required when scope is set to 'venue'."
+                    errorDescription: "Bad Request"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
@@ -729,9 +729,9 @@ paths:
                 invalidScopePayload:
                   summary: Invalid scope payload
                   value:
-                    ErrorCode: 400
-                    ErrorDetails: "venueId must not be provided when scope is 'entity'."
-                    ErrorDescription: "Bad Request"
+                    errorCode: 400
+                    errorDetails: "venueId must not be provided when scope is 'entity'."
+                    errorDescription: "Bad Request"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
@@ -746,9 +746,9 @@ paths:
                 bindingNotFound:
                   summary: User or access policy bindings not found
                   value:
-                    ErrorCode: 404
-                    ErrorDetails: "The access policy configuration for the target user at the specified scope does not exist."
-                    ErrorDescription: "Not Found"
+                    errorCode: 404
+                    errorDetails: "The access policy configuration for the target user at the specified scope does not exist."
+                    errorDescription: "Not Found"
         '409':
           $ref: '#/components/responses/ConflictError'
         '503':
@@ -895,9 +895,9 @@ components:
             badRequestDefault:
               summary: Validation error default
               value:
-                ErrorCode: 400
-                ErrorDetails: "One or more request parameters are invalid."
-                ErrorDescription: "Bad Request"
+                errorCode: 400
+                errorDetails: "One or more request parameters are invalid."
+                errorDescription: "Bad Request"
     UnauthorizedError:
       description: Authentication failed
       content:
@@ -908,9 +908,9 @@ components:
             unauthorizedDefault:
               summary: Unauthorized access error
               value:
-                ErrorCode: 401
-                ErrorDetails: "Bearer token is missing, expired, or invalid."
-                ErrorDescription: "Unauthorized"
+                errorCode: 401
+                errorDetails: "Bearer token is missing, expired, or invalid."
+                errorDescription: "Unauthorized"
     ForbiddenError:
       description: Caller is not allowed to perform this action in the resolved scope
       content:
@@ -921,9 +921,9 @@ components:
             forbiddenDefault:
               summary: Forbidden access error
               value:
-                ErrorCode: 403
-                ErrorDetails: "You do not have permission to access resources in the resolved scope."
-                ErrorDescription: "Forbidden"
+                errorCode: 403
+                errorDetails: "You do not have permission to access resources in the resolved scope."
+                errorDescription: "Forbidden"
     NotFoundError:
       description: Resource not found
       content:
@@ -934,9 +934,9 @@ components:
             notFoundDefault:
               summary: Resource not found error
               value:
-                ErrorCode: 404
-                ErrorDetails: "The requested resource could not be found."
-                ErrorDescription: "Not Found"
+                errorCode: 404
+                errorDetails: "The requested resource could not be found."
+                errorDescription: "Not Found"
     ConflictError:
       description: Current state conflicts with the requested operation
       content:
@@ -947,9 +947,9 @@ components:
             conflictDefault:
               summary: Conflict error default
               value:
-                ErrorCode: 409
-                ErrorDetails: "The operation conflicts with the current state of the resource."
-                ErrorDescription: "Conflict"
+                errorCode: 409
+                errorDetails: "The operation conflicts with the current state of the resource."
+                errorDescription: "Conflict"
     BackendUnavailableError:
       description: One or more required downstream services are unavailable
       content:
@@ -960,9 +960,9 @@ components:
             backendUnavailableDefault:
               summary: Backend service unavailable
               value:
-                ErrorCode: 503
-                ErrorDetails: "A required downstream service (e.g. PROV or OWSEC) is currently unreachable or timed out."
-                ErrorDescription: "Service Unavailable"
+                errorCode: 503
+                errorDetails: "A required downstream service (e.g. PROV or OWSEC) is currently unreachable or timed out."
+                errorDescription: "Service Unavailable"
 
   schemas:
     Id:
@@ -1001,21 +1001,21 @@ components:
 
     ApiError:
       type: object
-      required: [ErrorCode, ErrorDetails, ErrorDescription]
+      required: [errorCode, errorDetails, errorDescription]
       properties:
-        ErrorCode:
+        errorCode:
           type: integer
           description: Numeric error code (typically matching the HTTP status code or specific REST sub-code).
-        ErrorDetails:
+        errorDetails:
           type: string
           description: Detailed explanation or context of the error.
-        ErrorDescription:
+        errorDescription:
           type: string
           description: High-level classification of the error category.
       example:
-        ErrorCode: 400
-        ErrorDetails: "The requested field 'email' is invalid."
-        ErrorDescription: "Bad Request"
+        errorCode: 400
+        errorDetails: "The requested field 'email' is invalid."
+        errorDescription: "Bad Request"
 
     ScopePathItem:
       type: object
