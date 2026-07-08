@@ -471,56 +471,5 @@ func stringsSplit(s, sep string) []string {
 }
 
 func getDefaultPolicyEntries(role string, userID string, scopeType string, scopeID string) []prov.ProvManagementPolicyEntry {
-	usersList := []string{userID}
-	var policyJSON string
-	if scopeType == "entity" {
-		policyJSON = fmt.Sprintf(`{"type":"entity","entityId":"%s","includeVenues":true,"includeChildEntities":true}`, scopeID)
-	} else if scopeType == "venue" {
-		policyJSON = fmt.Sprintf(`{"type":"venue","venueId":"%s","includeVenues":true,"includeChildEntities":true}`, scopeID)
-	}
-
-	switch role {
-	case "admin":
-		return []prov.ProvManagementPolicyEntry{
-			{
-				Users:     usersList,
-				Resources: []string{"configuration", "inventory", "managementPolicy", "managementRole", "entity", "venue", "operator"},
-				Access:    []string{"READ", "MODIFY", "DELETE"},
-				Policy:    policyJSON,
-			},
-		}
-	case "installer":
-		return []prov.ProvManagementPolicyEntry{
-			{
-				Users:     usersList,
-				Resources: []string{"configuration", "inventory"},
-				Access:    []string{"READ", "MODIFY"},
-				Policy:    policyJSON,
-			},
-			{
-				Users:     usersList,
-				Resources: []string{"entity", "venue"},
-				Access:    []string{"READ"},
-				Policy:    policyJSON,
-			},
-		}
-	case "csr":
-		return []prov.ProvManagementPolicyEntry{
-			{
-				Users:     usersList,
-				Resources: []string{"configuration", "inventory", "entity", "venue"},
-				Access:    []string{"READ"},
-				Policy:    policyJSON,
-			},
-		}
-	default:
-		return []prov.ProvManagementPolicyEntry{
-			{
-				Users:     usersList,
-				Resources: []string{"entity", "venue"},
-				Access:    []string{"READ"},
-				Policy:    policyJSON,
-			},
-		}
-	}
+	return []prov.ProvManagementPolicyEntry{}
 }

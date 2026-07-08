@@ -165,10 +165,10 @@ All Phase 1 MDU business APIs listed below require validated bearer-token authen
 - `GET /api/v1/session` — Retrieve active session and effective access context.
 
 ### 2. Hierarchy (`Hierarchy` Tag)
-- `GET /api/v1/hierarchy/tree` — Retrieve full or scoped resource hierarchy tree.
+- `GET /api/v1/hierarchy` — Retrieve full or scoped resource hierarchy tree.
 
 ### 3. Entities (`Entities` Tag)
-- `GET /api/v1/entities` — List entities.
+- `GET /api/v1/entities` — List entities (defaults to `limit = 100`, `offset = 0` if omitted or invalid).
 - `POST /api/v1/entities` — Create a new entity.
 - `GET /api/v1/entities/{entityId}` — Retrieve details of a specific entity.
 - `PUT /api/v1/entities/{entityId}` — Update entity details.
@@ -177,6 +177,8 @@ All Phase 1 MDU business APIs listed below require validated bearer-token authen
 - `POST /api/v1/entities/{entityId}/venues` — Create a new venue under an entity.
 
 ### 4. Venues (`Venues` Tag)
+- `GET /api/v1/venues` — List venues (defaults to `limit = 100`, `offset = 0` if omitted or invalid).
+- `POST /api/v1/venues` — Create a new venue.
 - `GET /api/v1/venues/{venueId}` — Retrieve venue details.
 - `PUT /api/v1/venues/{venueId}` — Update venue details.
 - `DELETE /api/v1/venues/{venueId}` — Delete venue.
@@ -207,7 +209,7 @@ The operator, entity, venue, role, policy, and user access orchestration APIs ar
 Phase 1 provides method and lifecycle coverage for User-Access API operations as wrapper and orchestration contracts:
 
 - **User-Access Orchestration:** MDU does not expose full user CRUD. Instead, it supports user scope assignments and access policy management:
-  * **User Scope Assignments (`/assignments`):** Manages the user scope lifecycle. Creating an assignment (`POST`) binds a user to an entity/venue under a default role template (e.g. `admin`, `installer`) and automatically allocates a dedicated, default management policy. Deleting an assignment (`DELETE`) revokes access and cascade-deletes the role/policy.
+  * **User Scope Assignments (`/assignments`):** Manages the user scope lifecycle. Creating an assignment (`POST`) binds a user to an entity/venue under a role template (e.g. `admin`, `installer`) and automatically allocates a dedicated management policy which starts with no default resource permissions allocated. Deleting an assignment (`DELETE`) revokes access and cascade-deletes the role/policy.
   * **User Access Policies (`/access-policy`):** Manages fine-grained permission customizations. Updating an access policy (`PUT`) updates the specific resource permission entries on the existing policy linked to the user's role. It requires an active assignment to exist first.
 - **Resource Management (Entities & Venues):** Support full CRUD operations (`GET`, `POST`, `PUT`, `DELETE`) representing MDU wrappers over PROV's hierarchy tree.
 

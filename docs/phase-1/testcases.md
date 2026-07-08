@@ -299,7 +299,7 @@ Important assertions:
 # API 5/13: Get Visible Hierarchy Tree
 
 ```http
-GET /api/v1/hierarchy/tree
+GET /api/v1/hierarchy
 ```
 
 Purpose: Return the hierarchy visible to the caller.
@@ -428,7 +428,7 @@ Success response body shape:
   ],
   "metadata": {
     "total": 1,
-    "limit": 20,
+    "limit": 100,
     "offset": 0
   }
 }
@@ -438,7 +438,7 @@ Important assertions:
 
 - `items` and `metadata` are required.
 - `metadata.total`, `metadata.limit`, and `metadata.offset` are required.
-- Default pagination behavior must be verified when query params are omitted.
+- Default pagination behavior must be verified when query params are omitted or invalid.
 - Every item matches `EntitySummary`.
 - `type` must be exactly `normal` or `subscriber`.
 
@@ -447,12 +447,12 @@ Important assertions:
 | ID | Name | Expected Result |
 |---|---|---|
 | TC-LIST-ENTITIES-001 | List entities succeeds with explicit pagination | `200 OK`; response is contract-compatible with `EntityListResponse` |
-| TC-LIST-ENTITIES-002 | Default pagination applies when params are omitted | `200 OK`; `metadata.limit = 20`; `metadata.offset = 0` |
+| TC-LIST-ENTITIES-002 | Default pagination applies when params are omitted | `200 OK`; `metadata.limit = 100`; `metadata.offset = 0` |
 | TC-LIST-ENTITIES-003 | Empty page succeeds | `200 OK`; `items = []`; metadata remains valid |
 | TC-LIST-ENTITIES-004 | High offset beyond result set returns empty page | `200 OK`; `items = []`; metadata reflects request |
 | TC-LIST-ENTITIES-005 | Returned item count does not exceed `metadata.limit` | `200 OK`; count assertion passes |
-| TC-LIST-ENTITIES-006 | Invalid `limit` returns bad request | `400 Bad Request` |
-| TC-LIST-ENTITIES-007 | Invalid `offset` returns bad request | `400 Bad Request` |
+| TC-LIST-ENTITIES-006 | Invalid `limit` falls back to default limit of 100 | `200 OK`; `metadata.limit = 100` |
+| TC-LIST-ENTITIES-007 | Invalid `offset` falls back to default offset of 0 | `200 OK`; `metadata.offset = 0` |
 | TC-LIST-ENTITIES-008 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-LIST-ENTITIES-009 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-LIST-ENTITIES-010 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
@@ -629,16 +629,18 @@ Important assertions:
 
 ---
 
-# API 9/13: List / Create Venues Under an Entity
+# API 9/13: List / Create Venues (Top-level & Entity-scoped)
 
 ```http
 GET /api/v1/entities/{entityId}/venues
 POST /api/v1/entities/{entityId}/venues
+GET /api/v1/venues
+POST /api/v1/venues
 ```
 
-Purpose: List venues under an entity, and create a new venue under that entity.
+Purpose: List venues globally or under a specific entity, and create a new venue globally or under an entity scope.
 
-Required headers for both routes:
+Required headers:
 
 ```http
 Authorization: Bearer <token>
@@ -722,7 +724,7 @@ Success response body shape for list:
   ],
   "metadata": {
     "total": 1,
-    "limit": 20,
+    "limit": 100,
     "offset": 0
   }
 }
@@ -732,7 +734,7 @@ Important assertions:
 
 - List wrapper matches `VenueListResponse`.
 - Create success response matches `VenueDetail`.
-- Pagination exactness is validated on list route.
+- Pagination defaults to `limit = 100` and `offset = 0` if omitted or invalid.
 - `name` is required for create.
 - Wrong field types, malformed JSON, and empty body are rejected on create.
 
@@ -740,25 +742,24 @@ Important assertions:
 
 | ID | Name | Expected Result |
 |---|---|---|
-| TC-LIST-VENUES-001 | List venues under entity succeeds | `200 OK`; response is contract-compatible with `VenueListResponse` |
-| TC-LIST-VENUES-002 | Default pagination applies when omitted | `metadata.limit = 20`; `metadata.offset = 0` |
+| TC-LIST-VENUES-001 | List venues succeeds | `200 OK`; response is contract-compatible with `VenueListResponse` |
+| TC-LIST-VENUES-002 | Default pagination applies when omitted | `200 OK`; `metadata.limit = 100`; `metadata.offset = 0` |
 | TC-LIST-VENUES-003 | Empty page succeeds | `200 OK`; `items = []` |
 | TC-LIST-VENUES-004 | High offset returns empty page | `200 OK`; metadata valid |
-| TC-LIST-VENUES-005 | Entity path parameter accepts contract-valid opaque IDs | path parameter is treated as generic `Id` string unless the contract adds format constraints |
-| TC-LIST-VENUES-006 | Unknown entity returns not found | `404 Not Found` |
+| TC-LIST-VENUES-005 | Invalid limit falls back to default limit of 100 | `200 OK`; `metadata.limit = 100` |
+| TC-LIST-VENUES-006 | Invalid offset falls back to default offset of 0 | `200 OK`; `metadata.offset = 0` |
 | TC-LIST-VENUES-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
 | TC-LIST-VENUES-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
 | TC-LIST-VENUES-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-CREATE-VENUE-001 | Create venue succeeds | `201 Created`; response is contract-compatible with `VenueDetail` |
+| TC-CREATE-VENUE-001 | Create venue succeeds | `201 Created`; response matches `VenueDetail` |
 | TC-CREATE-VENUE-002 | Missing `name` returns validation error | `400 Bad Request` |
 | TC-CREATE-VENUE-003 | Wrong field type returns validation error | `400 Bad Request` |
 | TC-CREATE-VENUE-004 | Malformed JSON is rejected | `400 Bad Request` |
 | TC-CREATE-VENUE-005 | Empty body is rejected | `400 Bad Request` |
-| TC-CREATE-VENUE-006 | Unknown entity returns not found | `404 Not Found` |
-| TC-CREATE-VENUE-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-CREATE-VENUE-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-CREATE-VENUE-009 | Conflict returns conflict | `409 Conflict` |
-| TC-CREATE-VENUE-010 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
+| TC-CREATE-VENUE-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
+| TC-CREATE-VENUE-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
+| TC-CREATE-VENUE-008 | Conflict returns conflict | `409 Conflict` |
+| TC-CREATE-VENUE-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
 
 ---
 

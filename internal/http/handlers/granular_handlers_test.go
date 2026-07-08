@@ -14,6 +14,7 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
 	"github.com/routerarchitects/mango-mdu-service/internal/models"
 	"github.com/routerarchitects/mango-mdu-service/internal/services"
+	subsysteroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 )
 
 func TestGranularHandlers(t *testing.T) {
@@ -341,16 +342,23 @@ func TestGranularHandlers(t *testing.T) {
 	sessionService := services.NewSessionService(secClient, provClient)
 	sessionHandler := handlers.NewSessionHandler(sessionService)
 
+	hierarchyService := services.NewHierarchyService(provClient)
+	hierarchyHandler := handlers.NewHierarchyHandler(hierarchyService)
+
 	// Fiber app setup
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middleware.ErrorHandler,
 	})
+
+	// System diagnostic routes register directly on app (they automatically use /api/v1 prefix)
+	subsysteroutes.RegisterRoutes(subsysteroutes.Config{}, app)
 
 	apiGroup := app.Group("/api/v1")
 	venueHandler.Register(apiGroup)
 	assignmentHandler.Register(apiGroup)
 	entityHandler.Register(apiGroup)
 	sessionHandler.Register(apiGroup)
+	hierarchyHandler.Register(apiGroup)
 
 	// ==========================================
 	// TEST CASES
@@ -945,6 +953,146 @@ func TestGranularHandlers(t *testing.T) {
 
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected status 404, got %d", resp.StatusCode)
+		}
+	})
+
+	// 32. GET /api/v1/hierarchy - Scoped and Unscoped Tree
+	t.Run("GET Hierarchy Tree - Granular", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/hierarchy", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var treeResp models.HierarchyTreeResponse
+		json.NewDecoder(resp.Body).Decode(&treeResp)
+		if len(treeResp.Roots) == 0 {
+			t.Errorf("expected hierarchy tree roots, got none")
+		}
+	})
+
+	// 33. GET /api/v1/system - System Diagnostics (command=info)
+	t.Run("GET System Diagnostics - Info", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/system?command=info", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200, got %d", resp.StatusCode)
+		}
+	})
+
+	// 34. POST /api/v1/system - Subsystem Log Levels
+	t.Run("POST System Diagnostics - Log Level Names", func(t *testing.T) {
+		payload := `{"command":"getloglevelnames"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/system", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200, got %d", resp.StatusCode)
+		}
+	})
+
+	// 35. GET /api/v1/entities - Pagination Defaults and Fallback
+	t.Run("GET Entities list - Pagination Assertions", func(t *testing.T) {
+		// Omitted limit/offset query parameters
+		reqDefault, _ := http.NewRequest(http.MethodGet, "/api/v1/entities", nil)
+		respDefault, err := app.Test(reqDefault)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer respDefault.Body.Close()
+
+		if respDefault.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200, got %d", respDefault.StatusCode)
+		}
+
+		var listDefault models.EntityListResponse
+		json.NewDecoder(respDefault.Body).Decode(&listDefault)
+		if listDefault.Metadata.Limit != 100 {
+			t.Errorf("expected default limit to be 100, got %d", listDefault.Metadata.Limit)
+		}
+		if listDefault.Metadata.Offset != 0 {
+			t.Errorf("expected default offset to be 0, got %d", listDefault.Metadata.Offset)
+		}
+
+		// Invalid pagination values (non-integers)
+		reqInvalid, _ := http.NewRequest(http.MethodGet, "/api/v1/entities?limit=invalid&offset=invalid", nil)
+		respInvalid, err := app.Test(reqInvalid)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer respInvalid.Body.Close()
+
+		if respInvalid.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200 for invalid query parameters, got %d", respInvalid.StatusCode)
+		}
+
+		var listInvalid models.EntityListResponse
+		json.NewDecoder(respInvalid.Body).Decode(&listInvalid)
+		if listInvalid.Metadata.Limit != 100 {
+			t.Errorf("expected fallback limit to be 100, got %d", listInvalid.Metadata.Limit)
+		}
+		if listInvalid.Metadata.Offset != 0 {
+			t.Errorf("expected fallback offset to be 0, got %d", listInvalid.Metadata.Offset)
+		}
+	})
+
+	// 36. GET /api/v1/venues - Pagination Defaults and Fallback
+	t.Run("GET Venues list - Pagination Assertions", func(t *testing.T) {
+		// Omitted limit/offset query parameters
+		reqDefault, _ := http.NewRequest(http.MethodGet, "/api/v1/venues", nil)
+		respDefault, err := app.Test(reqDefault)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer respDefault.Body.Close()
+
+		if respDefault.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200, got %d", respDefault.StatusCode)
+		}
+
+		var listDefault models.VenueListResponse
+		json.NewDecoder(respDefault.Body).Decode(&listDefault)
+		if listDefault.Metadata.Limit != 100 {
+			t.Errorf("expected default limit to be 100, got %d", listDefault.Metadata.Limit)
+		}
+		if listDefault.Metadata.Offset != 0 {
+			t.Errorf("expected default offset to be 0, got %d", listDefault.Metadata.Offset)
+		}
+
+		// Invalid pagination values (non-integers)
+		reqInvalid, _ := http.NewRequest(http.MethodGet, "/api/v1/venues?limit=invalid&offset=invalid", nil)
+		respInvalid, err := app.Test(reqInvalid)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer respInvalid.Body.Close()
+
+		if respInvalid.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200 for invalid query parameters, got %d", respInvalid.StatusCode)
+		}
+
+		var listInvalid models.VenueListResponse
+		json.NewDecoder(respInvalid.Body).Decode(&listInvalid)
+		if listInvalid.Metadata.Limit != 100 {
+			t.Errorf("expected fallback limit to be 100, got %d", listInvalid.Metadata.Limit)
+		}
+		if listInvalid.Metadata.Offset != 0 {
+			t.Errorf("expected fallback offset to be 0, got %d", listInvalid.Metadata.Offset)
 		}
 	})
 }
