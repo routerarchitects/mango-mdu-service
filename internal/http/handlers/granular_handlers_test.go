@@ -12,8 +12,10 @@ import (
 	secclient "github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/routes"
 	"github.com/routerarchitects/mango-mdu-service/internal/models"
 	"github.com/routerarchitects/mango-mdu-service/internal/services"
+	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsysteroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 )
 
@@ -361,15 +363,46 @@ func TestGranularHandlers(t *testing.T) {
 		ErrorHandler: middleware.ErrorHandler,
 	})
 
-	// System diagnostic routes register directly on app (they automatically use /api/v1 prefix)
-	subsysteroutes.RegisterRoutes(subsysteroutes.Config{}, app)
+	app.Use(func(c fiber.Ctx) error {
+		if c.Get("X-Test-No-Auth-Inject") == "true" || c.Get("X-Test-Bypass-Auth") == "true" {
+			return c.Next()
+		}
+		if c.Get("Authorization") == "" {
+			c.Request().Header.Set("Authorization", "Bearer valid-token")
+		}
+		return c.Next()
+	})
 
-	apiGroup := app.Group("/api/v1")
-	venueHandler.Register(apiGroup)
-	assignmentHandler.Register(apiGroup)
-	entityHandler.Register(apiGroup)
-	sessionHandler.Register(apiGroup)
-	hierarchyHandler.Register(apiGroup)
+	tokenValidator := secclient.NewClientAdapter(secClient)
+	authMiddleware, err := middleware.NewServiceAuth(
+		true, // authEnabled
+		auth.PublicAuthConfig{},
+		auth.InternalAPIKeyConfig{
+			ExpectedAPIKey: "test-secret",
+		},
+		tokenValidator,
+	)
+	if err != nil {
+		t.Fatalf("failed to create auth middleware: %v", err)
+	}
+	publicAuthHandler := authMiddleware.GetPublicAuthHandler()
+
+	testPublicAuthHandler := func(c fiber.Ctx) error {
+		if c.Get("X-Test-Bypass-Auth") == "true" {
+			return c.Next()
+		}
+		return publicAuthHandler(c)
+	}
+
+	routes.RegisterPublic(app, routes.PublicDeps{
+		AuthHandler:       testPublicAuthHandler,
+		Subsystem:         subsysteroutes.Config{},
+		SessionHandler:    sessionHandler,
+		HierarchyHandler:  hierarchyHandler,
+		EntityHandler:     entityHandler,
+		VenueHandler:      venueHandler,
+		AssignmentHandler: assignmentHandler,
+	})
 
 	// ==========================================
 	// TEST CASES
@@ -400,6 +433,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 2. GET /api/v1/session - Negative Case
 	t.Run("GET Session - Negative (Missing Header)", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("X-Test-Bypass-Auth", "true")
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -411,9 +445,25 @@ func TestGranularHandlers(t *testing.T) {
 		}
 	})
 
+	// 2b. Verify Public Route Protection (Missing Authorization on another route)
+	t.Run("Verify Public Route Protection (Missing Authorization)", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities", nil)
+		req.Header.Set("X-Test-No-Auth-Inject", "true")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected status 401 Unauthorized for unprotected access to /api/v1/entities, got %d", resp.StatusCode)
+		}
+	})
+
 	// 3. GET /api/v1/session - Negative Case (Invalid Token)
 	t.Run("GET Session - Negative (Invalid Token)", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("X-Test-Bypass-Auth", "true")
 		req.Header.Set("Authorization", "Bearer invalid-token")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1123,6 +1173,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 39. GET /api/v1/session - Downstream SEC error maps to 503
 	t.Run("GET Session - Downstream SEC error maps to 503", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("X-Test-Bypass-Auth", "true")
 		req.Header.Set("Authorization", "Bearer downstream-error-token")
 		resp, err := app.Test(req)
 		if err != nil {
