@@ -151,13 +151,15 @@ func (s *AssignmentService) ListAssignments(reqCtx prov.RequestContext, userID s
 	}, nil
 }
 
-func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID string, req *models.CreateUserAssignmentRequest) (*models.UserAssignment, error) {
+func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID string, req *models.CreateUserAssignmentRequest) (*models.UserAssignment, bool, error) {
 	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var targetRole *prov.ProvManagementRole
+	var isAlreadyAssigned bool
+
 	for _, r := range roles {
 		match := false
 		if req.ScopeType == "entity" && r.Entity == req.ScopeID && r.Info.Name == req.Role {
@@ -178,11 +180,13 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 
 		if match {
 			targetRole = &r
+			isAlreadyAssigned = true
 			break
 		}
 	}
 
 	if targetRole == nil {
+		isAlreadyAssigned = false
 		// 1. Resolve or create management policy specifically for this user
 		var policyID string
 		policies, err := s.provClient.ListPolicies(reqCtx, 1000, 0)
@@ -222,7 +226,7 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 
 			createdPolicy, err := s.provClient.CreatePolicy(reqCtx, newPolicyUUID, newPolicy)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			policyID = createdPolicy.Info.ID
 		}
@@ -245,14 +249,14 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 
 		createdRole, err := s.provClient.CreateRole(reqCtx, newRoleUUID, newRole)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		targetRole = createdRole
 	}
 
 	_, nodePathMap, _, _, err := s.getLookupMaps(reqCtx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	scopeName := "Unknown Scope"
@@ -280,7 +284,7 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 		ManagementRoleID:   targetRole.Info.ID,
 		ManagementPolicyID: targetRole.ManagementPolicy,
 		CreatedAt:          time.Unix(targetRole.Info.Created, 0).UTC(),
-	}, nil
+	}, isAlreadyAssigned, nil
 }
 
 func (s *AssignmentService) DeleteAssignment(reqCtx prov.RequestContext, userID string, assignmentID string) error {

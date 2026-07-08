@@ -51,9 +51,17 @@ func (h *AssignmentHandler) CreateAssignment(c fiber.Ctx) error {
 		return apperror.New(apperror.CodeInvalidInput, "scopeId, scopeType, and role are required")
 	}
 
-	resp, err := h.service.CreateAssignment(reqCtx, userID, &req)
+	if req.ScopeType != "entity" && req.ScopeType != "venue" {
+		return apperror.New(apperror.CodeInvalidInput, "scopeType must be 'entity' or 'venue'")
+	}
+
+	resp, isAlreadyAssigned, err := h.service.CreateAssignment(reqCtx, userID, &req)
 	if err != nil {
 		return err
+	}
+
+	if isAlreadyAssigned {
+		return c.Status(fiber.StatusOK).JSON(resp)
 	}
 	return c.Status(fiber.StatusCreated).JSON(resp)
 }
@@ -78,8 +86,20 @@ func (h *AssignmentHandler) GetAccessPolicy(c fiber.Ctx) error {
 	entityID := c.Query("entityId")
 	venueID := c.Query("venueId")
 
-	if scope == "" || entityID == "" || (scope == "venue" && venueID == "") {
-		return apperror.New(apperror.CodeInvalidInput, "scope and entityId are required; venueId is additionally required if scope=venue")
+	if scope != "entity" && scope != "venue" {
+		return apperror.New(apperror.CodeInvalidInput, "scope must be 'entity' or 'venue'")
+	}
+	if entityID == "" {
+		return apperror.New(apperror.CodeInvalidInput, "entityId is required")
+	}
+	if scope == "entity" {
+		if venueID != "" {
+			return apperror.New(apperror.CodeInvalidInput, "venueId must not be provided for entity scope")
+		}
+	} else if scope == "venue" {
+		if venueID == "" {
+			return apperror.New(apperror.CodeInvalidInput, "venueId is required for venue scope")
+		}
 	}
 
 	resp, err := h.service.GetAccessPolicy(reqCtx, userID, scope, entityID, venueID)
@@ -98,8 +118,20 @@ func (h *AssignmentHandler) UpdateAccessPolicy(c fiber.Ctx) error {
 		return apperror.New(apperror.CodeInvalidInput, "invalid payload request")
 	}
 
-	if req.Scope == "" || req.EntityID == "" || (req.Scope == "venue" && req.VenueID == "") {
-		return apperror.New(apperror.CodeInvalidInput, "scope and entityId are required; venueId is additionally required if scope=venue")
+	if req.Scope != "entity" && req.Scope != "venue" {
+		return apperror.New(apperror.CodeInvalidInput, "scope must be 'entity' or 'venue'")
+	}
+	if req.EntityID == "" {
+		return apperror.New(apperror.CodeInvalidInput, "entityId is required")
+	}
+	if req.Scope == "entity" {
+		if req.VenueID != "" {
+			return apperror.New(apperror.CodeInvalidInput, "venueId must not be provided for entity scope")
+		}
+	} else if req.Scope == "venue" {
+		if req.VenueID == "" {
+			return apperror.New(apperror.CodeInvalidInput, "venueId is required for venue scope")
+		}
 	}
 
 	resp, err := h.service.UpdateAccessPolicy(reqCtx, userID, &req)

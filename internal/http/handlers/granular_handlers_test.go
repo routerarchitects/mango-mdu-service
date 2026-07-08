@@ -1151,4 +1151,119 @@ func TestGranularHandlers(t *testing.T) {
 			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
 		}
 	})
+
+	// 40. POST /api/v1/users/:userId/assignments - Idempotent 200 OK when user is already assigned
+	t.Run("POST Create Assignment - Idempotent 200 OK when user is already assigned", func(t *testing.T) {
+		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200 OK, got %d", resp.StatusCode)
+		}
+	})
+
+	// 41. POST /api/v1/users/:userId/assignments - New assignment created and 201 Created when user is not assigned
+	t.Run("POST Create Assignment - New assignment created and 201 Created when user is not assigned", func(t *testing.T) {
+		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-456/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated {
+			t.Errorf("expected status 201 Created, got %d", resp.StatusCode)
+		}
+	})
+
+	// 42. POST /api/v1/users/:userId/assignments - Invalid scopeType returns 400 Bad Request
+	t.Run("POST Create Assignment - Invalid scopeType returns 400 Bad Request", func(t *testing.T) {
+		payload := `{"scopeType":"invalid-scope","scopeId":"ent-1","role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 43. GET /api/v1/users/:userId/access-policy - Invalid combination (scope=entity with venueId present) returns 400
+	t.Run("GET Access Policy - Invalid combination (scope=entity with venueId) returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1&venueId=ven-1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 44. PUT /api/v1/users/:userId/access-policy - Invalid combination (scope=entity with venueId present) returns 400
+	t.Run("PUT Access Policy - Invalid combination (scope=entity with venueId) returns 400", func(t *testing.T) {
+		payload := `{"scope":"entity","entityId":"ent-1","venueId":"ven-1","role":"admin","entries":[]}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 45. GET /api/v1/users/:userId/access-policy - Venue scope missing venueId returns 400
+	t.Run("GET Access Policy - Venue scope missing venueId returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=venue&entityId=ent-1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 46. PUT /api/v1/users/:userId/access-policy - Venue scope missing venueId returns 400
+	t.Run("PUT Access Policy - Venue scope missing venueId returns 400", func(t *testing.T) {
+		payload := `{"scope":"venue","entityId":"ent-1","role":"admin","entries":[]}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
 }

@@ -42,8 +42,6 @@ func NewClient(discovery *servicediscovery.Discovery, tlsRootCA string, internal
 			return nil, fmt.Errorf("parse TLS root CA %q: invalid PEM", tlsRootCA)
 		}
 		tlsConfig.RootCAs = pool
-	} else {
-		tlsConfig.InsecureSkipVerify = true
 	}
 
 	transport := &http.Transport{
