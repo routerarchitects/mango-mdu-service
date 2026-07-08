@@ -34,10 +34,10 @@ func (h *VenueHandler) Register(router fiber.Router) {
 func (h *VenueHandler) ListVenues(c fiber.Ctx) error {
 	reqCtx := buildRequestContext(c)
 
-	limit := 100
+	limit := 20
 	if lStr := c.Query("limit"); lStr != "" {
 		val, err := strconv.Atoi(lStr)
-		if err != nil || val < 0 {
+		if err != nil || val < 1 || val > 100 {
 			return apperror.New(apperror.CodeInvalidInput, "invalid limit parameter")
 		}
 		limit = val
@@ -119,10 +119,10 @@ func (h *VenueHandler) ListEntityVenues(c fiber.Ctx) error {
 	reqCtx := buildRequestContext(c)
 	entityID := c.Params("entityId")
 
-	limit := 100
+	limit := 20
 	if lStr := c.Query("limit"); lStr != "" {
 		val, err := strconv.Atoi(lStr)
-		if err != nil || val < 0 {
+		if err != nil || val < 1 || val > 100 {
 			return apperror.New(apperror.CodeInvalidInput, "invalid limit parameter")
 		}
 		limit = val

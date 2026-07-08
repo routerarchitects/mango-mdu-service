@@ -31,10 +31,10 @@ func (h *EntityHandler) Register(router fiber.Router) {
 func (h *EntityHandler) ListEntities(c fiber.Ctx) error {
 	reqCtx := buildRequestContext(c)
 
-	limit := 100
+	limit := 20
 	if lStr := c.Query("limit"); lStr != "" {
 		val, err := strconv.Atoi(lStr)
-		if err != nil || val < 0 {
+		if err != nil || val < 1 || val > 100 {
 			return apperror.New(apperror.CodeInvalidInput, "invalid limit parameter")
 		}
 		limit = val

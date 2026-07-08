@@ -1083,8 +1083,8 @@ func TestGranularHandlers(t *testing.T) {
 
 		var listDefault models.EntityListResponse
 		json.NewDecoder(respDefault.Body).Decode(&listDefault)
-		if listDefault.Metadata.Limit != 100 {
-			t.Errorf("expected default limit to be 100, got %d", listDefault.Metadata.Limit)
+		if listDefault.Metadata.Limit != 20 {
+			t.Errorf("expected default limit to be 20, got %d", listDefault.Metadata.Limit)
 		}
 		if listDefault.Metadata.Offset != 0 {
 			t.Errorf("expected default offset to be 0, got %d", listDefault.Metadata.Offset)
@@ -1119,8 +1119,8 @@ func TestGranularHandlers(t *testing.T) {
 
 		var listDefault models.VenueListResponse
 		json.NewDecoder(respDefault.Body).Decode(&listDefault)
-		if listDefault.Metadata.Limit != 100 {
-			t.Errorf("expected default limit to be 100, got %d", listDefault.Metadata.Limit)
+		if listDefault.Metadata.Limit != 20 {
+			t.Errorf("expected default limit to be 20, got %d", listDefault.Metadata.Limit)
 		}
 		if listDefault.Metadata.Offset != 0 {
 			t.Errorf("expected default offset to be 0, got %d", listDefault.Metadata.Offset)
