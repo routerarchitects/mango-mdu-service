@@ -35,10 +35,9 @@ Phase 1 includes:
 - inbound bearer-token validation through OWSEC.
 - token-backed session/bootstrap view APIs:
   - `GET /api/v1/session`.
-- operator APIs and user-access orchestration APIs (assignments, access policies) as approved Phase 1 northbound wrapper contracts over downstream services.
-- complete resource management wrapper APIs (entities, venues, roles, policies) delegating state persistence to PROV.
+- user-access orchestration APIs (assignments, access policies) as approved Phase 1 northbound wrapper contracts over downstream services.
+- complete resource management wrapper APIs (entities, venues) delegating state persistence to PROV.
 - user-scoped assignment APIs (for user roles and access scopes) and access-policy management.
-- subscriber list retrieval for operators.
 - service-to-service downstream calls using internal service credentials.
 - forwarding user bearer context to PROV using `Authorization` where required.
 - access-summary style workflows where PROV remains the RBAC decision-maker.
@@ -47,7 +46,7 @@ Phase 1 includes:
 - request tracing, request ID, and correlation ID propagation.
 - a clean production route baseline without placeholder scaffold CRUD surfaces.
 
-All operator, entity, venue, role, and policy APIs in Phase 1 act as MDU-facing normalized wrapper contracts, and user endpoints are limited to access orchestration (assignments, access policies) while user identity and CRUD remain directly with OWSEC.
+All entity and venue APIs in Phase 1 act as MDU-facing normalized wrapper contracts, and user endpoints are limited to access orchestration (assignments, access policies) while user identity, operator management, subscriber signups, roles, and policies CRUD remain directly with OWSEC/PROV (bypassing MDU).
 
 ---
 
@@ -223,19 +222,18 @@ Standard client applications call these endpoints directly on the Provisioning s
 
 ## MDU-facing Normalized Wrapper Contract and Source of Truth
 
-The operator, entity, venue, role, policy, and user access orchestration APIs are MDU-facing normalized wrapper contracts over downstream services, NOT a transfer of domain ownership or persistent truth. MDU acts as a stateless facade/orchestrator:
+The natively implemented entity, venue, and user access orchestration APIs are MDU-facing normalized wrapper contracts over downstream services, NOT a transfer of domain ownership or persistent truth. MDU acts as a stateless facade/orchestrator:
 - **OWSEC** is the authoritative source of truth for user identity, credentials, login, token validation, and user CRUD. User CRUD does not route through MDU.
-- **PROV** is the authoritative source of truth for operators, entities, venues, roles, policies, and persisted RBAC structures. MDU forwards the caller's user context to PROV to validate authorization and retrieve/persist these records.
-- **Hybrid Routing:** Collection-level operator operations (listing and creating operators) bypass MDU and are called directly to PROV by standard clients. Individual operator member operations (retrieval, updates, deletion) are routed through the MDU facade.
+- **PROV** is the authoritative source of truth for operators, entities, venues, roles, policies, and persisted RBAC structures. MDU forwards the caller's user context to PROV to validate authorization and retrieve/persist these records for natively wrappered routes, while others are accessed directly.
+- **Direct-Callable Routing:** Operators, roles, policies, and subscriber signups bypass MDU and are called directly on PROV/SEC.
 
-### Operator and User-Access Lifecycles
+### Resource and User-Access Lifecycles
 
-Phase 1 provides method and lifecycle coverage for Operator and User-Access API operations as wrapper and orchestration contracts:
+Phase 1 provides method and lifecycle coverage for resource and User-Access API operations natively implemented in MDU:
 
-- **Operators:** Support member details retrieval (`GET`), updating parameters (`PUT`), and deletion (`DELETE`) through the MDU facade. In alignment with the hybrid routing model, collection-level operator operations (listing and creating operators) bypass MDU and are called directly to PROV by standard clients.
 - **User-Access Orchestration:** MDU does not expose full user CRUD. Instead, it supports user scope assignments (`GET` assignments, `POST` assignment additions—which resolve idempotently to create, update, or return success on existing roles—and `DELETE` assignment removals) and access policy lookup (`GET`) and policy updates (`PUT`). User account lifecycle and profile CRUD remain directly with OWSEC.
 - **Resource Management (Entities & Venues):** Support full CRUD operations (`GET`, `POST`, `PUT`, `DELETE`) representing MDU wrappers over PROV's hierarchy tree.
-- **Access Policies & Roles:** Support listing, creation, reading details, updating, and deleting policies and roles, backed entirely by PROV.
+- **Access Policies & Roles (Delegated):** Creating, updating, and deleting policies/roles themselves are not wrapped by MDU; instead, client applications interact with these directly on PROV.
 
 #### Role Distinction
 

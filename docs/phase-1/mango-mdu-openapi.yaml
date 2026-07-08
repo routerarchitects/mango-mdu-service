@@ -10,11 +10,11 @@ info:
 
     Phase 1 integrations:
     - OWSEC: authentication, token validation, and user identity/user CRUD handled directly outside MDU
-    - PROV: entities, venues, management roles, management policies, effective scope resolution, and operator-scoped subscriber listing
+    - PROV: entities, venues, hierarchy, and assignments
 
     Phase 1 scope:
-    - session/access context, hierarchy/entity/venue wrappers, user-access orchestration, roles/policies orchestration, and operator-scoped subscriber listing only
-    - operator listing and creation are handled directly by PROV from the UI (bypassing MDU), while operator detail retrieval, updates, and deletion are orchestrated via MDU
+    - session/access context, hierarchy/entity/venue wrappers, and user-access/assignment orchestration only
+    - Direct-callable/pass-through APIs (e.g. operators, roles, policies, and subscriber signups) bypass MDU and are called directly on PROV/SEC by the UI.
 
     Explicit non-goal:
     - billing features are out-of-scope for Phase 1
@@ -29,10 +29,6 @@ tags:
   - name: Entities
   - name: Venues
   - name: Users
-  - name: Management Roles
-  - name: Management Policies
-  - name: Subscribers
-  - name: Operators
   - name: System
 
 security:

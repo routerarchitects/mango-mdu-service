@@ -12,7 +12,6 @@ This document contains the approved testcase set for the public Phase 1 MDU Serv
 - Public northbound MDU APIs in this contract do **not** require `X-API-KEY` / `x-api` from callers.
 - Internal/private routes and internal authentication modes are intentionally out of scope for this testcase document.
 - `X-Request-Id` and `X-Correlation-Id` are optional request headers on documented protected routes.
-- **Direct-Callable / Pass-Through APIs (PROV Delegation):** Several northbound APIs defined in the OpenAPI contract (specifically: Operator member APIs, Subscriber listing, Management Policies, and Management Roles) are not implemented in the `mango-mdu-service` Go codebase runtime because they can be called directly on the Provisioning service (`owprov` / PROV). Test cases for these APIs represent expectations on the unified API surface, which is fulfilled downstream. Specific mappings for these direct-callable/passthrough routes are documented in [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 - All shared JSON error responses use the `ApiError` envelope:
   - `ErrorCode`
   - `ErrorDetails`
@@ -35,7 +34,7 @@ This document contains the approved testcase set for the public Phase 1 MDU Serv
 
 ---
 
-# API 1/19: Liveness Probe
+# API 1/13: Liveness Probe
 
 ```http
 GET /livez
@@ -62,7 +61,7 @@ Success response body:
 
 ---
 
-# API 2/19: Get System Diagnostics
+# API 2/13: Get System Diagnostics
 
 ```http
 GET /api/v1/system?command={command}
@@ -114,7 +113,7 @@ Important assertions:
 
 ---
 
-# API 3/19: Update System Diagnostics / Log Levels
+# API 3/13: Update System Diagnostics / Log Levels
 
 ```http
 POST /api/v1/system
@@ -186,7 +185,7 @@ Important assertions:
 
 ---
 
-# API 4/19: Get Active Session and Effective Access Context
+# API 4/13: Get Active Session and Effective Access Context
 
 ```http
 GET /api/v1/session
@@ -297,241 +296,7 @@ Important assertions:
 
 ---
 
-# API 5/19: Get Operator Detail
-
-> [!NOTE]
-> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
-
-```http
-GET /api/v1/operators/{operatorId}
-```
-
-Purpose: Retrieve operator details.
-
-Required headers:
-
-```http
-Authorization: Bearer <token>
-```
-
-Optional headers:
-
-```http
-X-Request-Id
-X-Correlation-Id
-```
-
-Success response body example:
-
-```json
-{
-  "id": "323e4567-e89b-12d3-a456-426614174000",
-  "name": "Acme Operator",
-  "description": "Primary operator for regional services",
-  "entityId": "223e4567-e89b-12d3-a456-426614174000",
-  "registrationId": "REG-99210-A",
-  "createdAt": "2026-06-30T12:00:00Z",
-  "updatedAt": "2026-06-30T12:00:00Z"
-}
-```
-
-Important assertions:
-
-- Response matches `OperatorDetail`.
-- `id` and `name` are required.
-- `createdAt` and `updatedAt` are valid timestamps when returned.
-
-## Test Cases
-
-| ID | Name | Expected Result |
-|---|---|---|
-| TC-GET-OPERATOR-001 | Get operator detail succeeds | `200 OK`; response is contract-compatible with `OperatorDetail` |
-| TC-GET-OPERATOR-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-GET-OPERATOR-003 | Caller lacks scope to read operator returns forbidden | `403 Forbidden` |
-| TC-GET-OPERATOR-004 | Unknown operator returns not found | `404 Not Found`; exact `ApiError` envelope |
-| TC-GET-OPERATOR-005 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-
----
-
-# API 6/19: Update Operator Detail
-
-> [!NOTE]
-> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
-
-```http
-PUT /api/v1/operators/{operatorId}
-```
-
-Purpose: Update operator details.
-
-Required headers:
-
-```http
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-Optional headers:
-
-```http
-X-Request-Id
-X-Correlation-Id
-```
-
-Request body example:
-
-```json
-{
-  "name": "Acme Operator",
-  "description": "Primary operator for regional services",
-  "registrationId": "REG-99210-A"
-}
-```
-
-Success response body:
-
-```json
-{
-  "id": "323e4567-e89b-12d3-a456-426614174000",
-  "name": "Acme Operator",
-  "description": "Primary operator for regional services",
-  "entityId": "223e4567-e89b-12d3-a456-426614174000",
-  "registrationId": "REG-99210-A",
-  "createdAt": "2026-06-30T12:00:00Z",
-  "updatedAt": "2026-06-30T12:00:00Z"
-}
-```
-
-Important assertions:
-
-- Request body matches `UpdateOperatorRequest`.
-- Wrong field types, wrong `Content-Type`, and malformed JSON must be rejected.
-- The request body is required by contract, but an empty JSON object `{}` remains contract-valid unless the OpenAPI later requires at least one mutable field.
-- Conflict behavior must use the shared `ConflictError` envelope.
-
-## Test Cases
-
-| ID | Name | Expected Result |
-|---|---|---|
-| TC-PUT-OPERATOR-001 | Update operator succeeds | `200 OK`; response is contract-compatible with `OperatorDetail` |
-| TC-PUT-OPERATOR-002 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateOperatorRequest` |
-| TC-PUT-OPERATOR-003 | Wrong field type is rejected | `400 Bad Request` |
-| TC-PUT-OPERATOR-004 | Wrong `Content-Type` is rejected | `400 Bad Request`; contract-level bad-request response |
-| TC-PUT-OPERATOR-005 | Malformed JSON is rejected | `400 Bad Request`; contract-level bad-request response |
-| TC-PUT-OPERATOR-006 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-PUT-OPERATOR-007 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-PUT-OPERATOR-008 | Unknown operator returns not found | `404 Not Found` |
-| TC-PUT-OPERATOR-009 | Current state conflict returns conflict | `409 Conflict`; exact shared conflict envelope |
-| TC-PUT-OPERATOR-010 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-
----
-
-# API 7/19: Delete Operator
-
-> [!NOTE]
-> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
-
-```http
-DELETE /api/v1/operators/{operatorId}
-```
-
-Purpose: Delete an operator.
-
-Required headers:
-
-```http
-Authorization: Bearer <token>
-```
-
-Optional headers:
-
-```http
-X-Request-Id
-X-Correlation-Id
-```
-
-Success response:
-
-- `204 No Content`
-- No JSON response body allowed
-
-## Test Cases
-
-| ID | Name | Expected Result |
-|---|---|---|
-| TC-DELETE-OPERATOR-001 | Delete operator succeeds | `204 No Content`; no JSON body |
-| TC-DELETE-OPERATOR-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-DELETE-OPERATOR-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-DELETE-OPERATOR-004 | Unknown operator returns not found | `404 Not Found` |
-| TC-DELETE-OPERATOR-005 | Conflict prevents delete | `409 Conflict`; exact shared conflict envelope |
-| TC-DELETE-OPERATOR-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-
----
-
-# API 8/19: List Subscribers for an Operator
-
-> [!NOTE]
-> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
-
-```http
-GET /api/v1/operators/{operatorId}/subscribers
-```
-
-Purpose: Return a simple, unpaginated list of subscriber signup entries associated with the target operator.
-
-Required headers:
-
-```http
-Authorization: Bearer <token>
-```
-
-Optional headers:
-
-```http
-X-Request-Id
-X-Correlation-Id
-```
-
-Success response body example:
-
-```json
-{
-  "items": [
-    {
-      "id": "723e4567-e89b-12d3-a456-426614174000",
-      "email": "subscriber@example.com",
-      "userId": "823e4567-e89b-12d3-a456-426614174000",
-      "operatorId": "323e4567-e89b-12d3-a456-426614174000",
-      "macAddress": "00:11:22:33:44:55",
-      "serialNumber": "SN-998822",
-      "status": "active",
-      "registrationId": "REG-99210-A",
-      "createdAt": "2026-06-30T12:00:00Z"
-    }
-  ]
-}
-```
-
-Important assertions:
-
-- Response matches `SubscriberListResponse`.
-- Each item matches `SubscriberSignup`.
-- `email`, `registrationId`, and `status` are required on each subscriber.
-
-## Test Cases
-
-| ID | Name | Expected Result |
-|---|---|---|
-| TC-SUBSCRIBERS-001 | List subscribers succeeds | `200 OK`; response is contract-compatible with `SubscriberListResponse` |
-| TC-SUBSCRIBERS-002 | Empty subscriber list succeeds | `200 OK`; `items = []` |
-| TC-SUBSCRIBERS-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-SUBSCRIBERS-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-SUBSCRIBERS-005 | Unknown operator returns not found | `404 Not Found` |
-| TC-SUBSCRIBERS-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-
----
-
-# API 9/19: Get Visible Hierarchy Tree
+# API 5/13: Get Visible Hierarchy Tree
 
 ```http
 GET /api/v1/hierarchy
@@ -611,7 +376,7 @@ Important assertions:
 
 ---
 
-# API 10/19: List Entities
+# API 6/13: List Entities
 
 ```http
 GET /api/v1/entities
@@ -694,7 +459,7 @@ Important assertions:
 
 ---
 
-# API 11/19: Create Entity
+# API 7/13: Create Entity
 
 ```http
 POST /api/v1/entities
@@ -781,7 +546,7 @@ Important assertions:
 
 ---
 
-# API 12/19: Entity Detail / Update / Delete
+# API 8/13: Entity Detail / Update / Delete
 
 ```http
 GET /api/v1/entities/{entityId}
@@ -864,7 +629,7 @@ Important assertions:
 
 ---
 
-# API 13/19: List / Create Venues Under an Entity
+# API 9/13: List / Create Venues Under an Entity
 
 ```http
 GET /api/v1/entities/{entityId}/venues
@@ -997,7 +762,7 @@ Important assertions:
 
 ---
 
-# API 14/19: Venue Detail / Update / Delete
+# API 10/13: Venue Detail / Update / Delete
 
 ```http
 GET /api/v1/venues/{venueId}
@@ -1075,339 +840,7 @@ Important assertions:
 
 ---
 
-# API 15/19: Management Policies
-
-> [!NOTE]
-> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
-
-```http
-GET /api/v1/policies
-POST /api/v1/policies
-GET /api/v1/policies/{policyId}
-PUT /api/v1/policies/{policyId}
-DELETE /api/v1/policies/{policyId}
-```
-
-Purpose: List, create, retrieve, update, and delete management policies.
-
-Optional query parameters for list:
-
-```http
-limit
-offset
-entityId
-venueId
-```
-
-Create request body example:
-
-```json
-{
-  "name": "InstallerPolicy",
-  "description": "Read/Write configuration policy for installers",
-  "entries": [
-    {
-      "users": [
-        "123e4567-e89b-12d3-a456-426614174000"
-      ],
-      "resources": [
-        "configuration",
-        "inventory"
-      ],
-      "access": [
-        "READ",
-        "MODIFY"
-      ]
-    }
-  ],
-  "entity": "223e4567-e89b-12d3-a456-426614174000"
-}
-```
-
-Venue-scoped request body example:
-
-```json
-{
-  "name": "Venue InstallerPolicy",
-  "description": "Venue-scoped configuration policy for installers",
-  "entries": [
-    {
-      "users": [
-        "123e4567-e89b-12d3-a456-426614174000"
-      ],
-      "resources": [
-        "configuration",
-        "inventory"
-      ],
-      "access": [
-        "READ",
-        "MODIFY"
-      ]
-    }
-  ],
-  "venue": "423e4567-e89b-12d3-a456-426614174000"
-}
-```
-
-Success response body example for create/get/update:
-
-```json
-{
-  "id": "523e4567-e89b-12d3-a456-426614174000",
-  "name": "InstallerPolicy",
-  "description": "Read/Write configuration policy for installers",
-  "entries": [
-    {
-      "users": [
-        "123e4567-e89b-12d3-a456-426614174000"
-      ],
-      "resources": [
-        "configuration",
-        "inventory"
-      ],
-      "access": [
-        "READ",
-        "MODIFY"
-      ]
-    }
-  ],
-  "entity": "223e4567-e89b-12d3-a456-426614174000",
-  "createdAt": "2026-06-30T12:00:00Z",
-  "updatedAt": "2026-06-30T12:00:00Z"
-}
-```
-
-Success response body shape for list:
-
-```json
-{
-  "items": [
-    {
-      "id": "<Id>",
-      "name": "<string>",
-      "description": "<string>",
-      "entries": [
-        {
-          "users": [
-            "<Id>"
-          ],
-          "resources": [
-            "<string>"
-          ],
-          "access": [
-            "<PolicyAccessKey>"
-          ]
-        }
-      ],
-      "entity": "<Id>",
-      "venue": "<Id>",
-      "createdAt": "<IsoDateTime>",
-      "updatedAt": "<IsoDateTime>"
-    }
-  ],
-  "metadata": {
-    "total": 1,
-    "limit": 20,
-    "offset": 0
-  }
-}
-```
-
-Important assertions:
-
-- List wrapper matches `ManagementPolicyListResponse`.
-- Item/detail response matches `ManagementPolicy`.
-- `name` is required on create.
-- Nested `entries[*]` must contain required `resources` and `access`.
-- Nested `entries[*].users`, when present, must be accepted as an array of IDs and preserved in returned `ManagementPolicy` payloads.
-- Nested enum values in `access` must exactly match `PolicyAccessKey`.
-- Exact pagination behavior is validated on list route.
-
-## Test Cases
-
-| ID | Name | Expected Result |
-|---|---|---|
-| TC-LIST-POLICIES-001 | List policies succeeds | `200 OK`; response is contract-compatible with `ManagementPolicyListResponse` |
-| TC-LIST-POLICIES-002 | Default pagination applies when omitted | metadata defaults verified |
-| TC-LIST-POLICIES-003 | High offset returns empty page | `200 OK`; empty page valid |
-| TC-LIST-POLICIES-004 | Invalid pagination params return bad request | `400 Bad Request` |
-| TC-LIST-POLICIES-005 | Filter by `entityId` succeeds | `200 OK`; returned policies satisfy filter |
-| TC-LIST-POLICIES-006 | Filter by `venueId` succeeds | `200 OK`; returned policies satisfy filter |
-| TC-LIST-POLICIES-007 | List policies preserves `entries[*].users` when present | `200 OK`; returned items include the same `users` arrays |
-| TC-LIST-POLICIES-008 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-LIST-POLICIES-009 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-LIST-POLICIES-010 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-CREATE-POLICY-001 | Create policy succeeds | `201 Created`; response is contract-compatible with `ManagementPolicy` |
-| TC-CREATE-POLICY-002 | Create policy preserves `entries[*].users` when provided | `201 Created`; returned `ManagementPolicy.entries[*].users` matches request |
-| TC-CREATE-POLICY-003 | Missing `name` returns validation error | `400 Bad Request` |
-| TC-CREATE-POLICY-004 | Invalid nested `entries` shape returns validation error | `400 Bad Request` |
-| TC-CREATE-POLICY-005 | Invalid `access` enum returns validation error | `400 Bad Request` |
-| TC-CREATE-POLICY-006 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-CREATE-POLICY-007 | Malformed JSON or empty body is rejected | `400 Bad Request` |
-| TC-CREATE-POLICY-008 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-CREATE-POLICY-009 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-CREATE-POLICY-010 | Conflict returns conflict | `409 Conflict` |
-| TC-CREATE-POLICY-011 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-GET-POLICY-001 | Get policy detail succeeds | `200 OK`; response is contract-compatible with `ManagementPolicy` |
-| TC-GET-POLICY-002 | Get policy detail preserves `entries[*].users` when present | `200 OK`; returned `ManagementPolicy.entries[*].users` matches persisted data |
-| TC-GET-POLICY-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-GET-POLICY-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-GET-POLICY-005 | Unknown policy returns not found | `404 Not Found` |
-| TC-GET-POLICY-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-PUT-POLICY-001 | Update policy succeeds | `200 OK`; response is contract-compatible with `ManagementPolicy` |
-| TC-PUT-POLICY-002 | Update policy preserves `entries[*].users` when provided | `200 OK`; returned `ManagementPolicy.entries[*].users` matches request |
-| TC-PUT-POLICY-003 | Invalid nested payload returns validation error | `400 Bad Request` |
-| TC-PUT-POLICY-004 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-PUT-POLICY-005 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-PUT-POLICY-006 | Unknown policy returns not found | `404 Not Found` |
-| TC-PUT-POLICY-007 | Conflict returns conflict | `409 Conflict` |
-| TC-PUT-POLICY-008 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-DELETE-POLICY-001 | Delete policy succeeds | `204 No Content`; no JSON body |
-| TC-DELETE-POLICY-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-DELETE-POLICY-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-DELETE-POLICY-004 | Unknown policy returns not found | `404 Not Found` |
-| TC-DELETE-POLICY-005 | Conflict returns conflict | `409 Conflict` |
-| TC-DELETE-POLICY-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-
----
-
-# API 16/19: Management Roles
-
-> [!NOTE]
-> **Delegated Downstream API:** This API is not natively implemented in the MDU service runtime; standard clients call PROV directly. See [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
-
-```http
-GET /api/v1/roles
-POST /api/v1/roles
-GET /api/v1/roles/{roleId}
-PUT /api/v1/roles/{roleId}
-DELETE /api/v1/roles/{roleId}
-```
-
-Purpose: List, create, retrieve, update, and delete management roles.
-
-Optional query parameters for list:
-
-```http
-limit
-offset
-entityId
-```
-
-Create request body example:
-
-```json
-{
-  "name": "Installer",
-  "description": "On-site installation technician role",
-  "managementPolicy": "523e4567-e89b-12d3-a456-426614174000",
-  "users": [
-    "123e4567-e89b-12d3-a456-426614174000"
-  ],
-  "entity": "223e4567-e89b-12d3-a456-426614174000"
-}
-```
-
-Success response body example for create/get/update:
-
-```json
-{
-  "id": "623e4567-e89b-12d3-a456-426614174000",
-  "name": "Installer",
-  "description": "On-site installation technician role",
-  "managementPolicy": "523e4567-e89b-12d3-a456-426614174000",
-  "users": [
-    "123e4567-e89b-12d3-a456-426614174000"
-  ],
-  "entity": "223e4567-e89b-12d3-a456-426614174000",
-  "createdAt": "2026-06-30T12:00:00Z",
-  "updatedAt": "2026-06-30T12:00:00Z"
-}
-```
-
-Success response body shape for list:
-
-```json
-{
-  "items": [
-    {
-      "id": "<Id>",
-      "name": "<string>",
-      "description": "<string>",
-      "managementPolicy": "<Id>",
-      "users": [
-        "<Id>"
-      ],
-      "entity": "<Id>",
-      "venue": "<Id>",
-      "createdAt": "<IsoDateTime>",
-      "updatedAt": "<IsoDateTime>"
-    }
-  ],
-  "metadata": {
-    "total": 1,
-    "limit": 20,
-    "offset": 0
-  }
-}
-```
-
-Important assertions:
-
-- List wrapper matches `ManagementRoleListResponse`.
-- Item/detail response matches `ManagementRole`.
-- `name` and `managementPolicy` are required on create.
-- `users`, when present, must be an array of IDs.
-- Role payloads may be entity-scoped or venue-scoped, and either scope must remain contract-compatible when returned.
-- Exact pagination behavior is validated on list route.
-
-## Test Cases
-
-| ID | Name | Expected Result |
-|---|---|---|
-| TC-LIST-ROLES-001 | List roles succeeds | `200 OK`; response is contract-compatible with `ManagementRoleListResponse` |
-| TC-LIST-ROLES-002 | Default pagination applies when params are omitted | metadata defaults verified |
-| TC-LIST-ROLES-003 | High offset returns empty page | `200 OK`; empty page valid |
-| TC-LIST-ROLES-004 | Invalid pagination params return bad request | `400 Bad Request` |
-| TC-LIST-ROLES-005 | Filter by `entityId` succeeds | `200 OK`; returned roles satisfy filter |
-| TC-LIST-ROLES-006 | Venue-scoped role items remain contract-compatible when returned | `200 OK`; returned venue-scoped items preserve the `venue` field |
-| TC-LIST-ROLES-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-LIST-ROLES-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-LIST-ROLES-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-CREATE-ROLE-001 | Create role succeeds | `201 Created`; response is contract-compatible with `ManagementRole` |
-| TC-CREATE-ROLE-002 | Venue-scoped role create succeeds | `201 Created`; response preserves the venue-scoped `ManagementRole` shape |
-| TC-CREATE-ROLE-003 | Missing `name` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-004 | Missing `managementPolicy` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-005 | Wrong type in `users` returns validation error | `400 Bad Request` |
-| TC-CREATE-ROLE-006 | Malformed JSON or empty body is rejected | `400 Bad Request` |
-| TC-CREATE-ROLE-007 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-CREATE-ROLE-008 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-CREATE-ROLE-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-GET-ROLE-001 | Get role detail succeeds | `200 OK`; response is contract-compatible with `ManagementRole` |
-| TC-GET-ROLE-002 | Venue-scoped role detail remains contract-compatible when returned | `200 OK`; returned role preserves the `venue` field |
-| TC-GET-ROLE-003 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-GET-ROLE-004 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-GET-ROLE-005 | Unknown role returns not found | `404 Not Found` |
-| TC-GET-ROLE-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-PUT-ROLE-001 | Update role succeeds | `200 OK`; response is contract-compatible with `ManagementRole` |
-| TC-PUT-ROLE-002 | Venue-scoped role update succeeds | `200 OK`; response preserves the venue-scoped `ManagementRole` shape |
-| TC-PUT-ROLE-003 | Wrong field type returns validation error | `400 Bad Request` |
-| TC-PUT-ROLE-004 | Empty JSON object remains contract-valid | request body `{}` remains contract-compatible with `UpdateManagementRoleRequest` |
-| TC-PUT-ROLE-005 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-PUT-ROLE-006 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-PUT-ROLE-007 | Unknown role returns not found | `404 Not Found` |
-| TC-PUT-ROLE-008 | Conflict returns conflict | `409 Conflict` |
-| TC-PUT-ROLE-009 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-| TC-DELETE-ROLE-001 | Delete role succeeds | `204 No Content`; no JSON body |
-| TC-DELETE-ROLE-002 | Missing bearer token returns unauthorized | `401 Unauthorized` |
-| TC-DELETE-ROLE-003 | Caller lacks permission returns forbidden | `403 Forbidden` |
-| TC-DELETE-ROLE-004 | Unknown role returns not found | `404 Not Found` |
-| TC-DELETE-ROLE-005 | Conflict returns conflict | `409 Conflict` |
-| TC-DELETE-ROLE-006 | Backend unavailable returns service unavailable | `503 Service Unavailable` |
-
----
-
-# API 17/19: Get Effective Scoped Assignments for a User
+# API 11/13: Get Effective Scoped Assignments for a User
 
 ```http
 GET /api/v1/users/{userId}/assignments
@@ -1476,7 +909,7 @@ Important assertions:
 
 ---
 
-# API 18/19: Create / Delete User Assignment
+# API 12/13: Create / Delete User Assignment
 
 ```http
 POST /api/v1/users/{userId}/assignments
@@ -1618,7 +1051,7 @@ Important assertions:
 
 ---
 
-# API 19/19: Get / Update User Access Policy
+# API 13/13: Get / Update User Access Policy
 
 ```http
 GET /api/v1/users/{userId}/access-policy

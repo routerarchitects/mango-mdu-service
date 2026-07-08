@@ -53,7 +53,7 @@ These APIs are not implemented or exposed by the `mango-mdu-service` Go codebase
 Detailed mappings for these direct-callable/passthrough routes are specified in [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
 
 ### Excluded APIs
-Contacts, subscriber management (invite/creation), and subscriber devices are not exposed as active MDU contract routes in Phase 1 (with the sole exception of `/api/v1/operators/{operatorId}/subscribers` for operator-scoped listing). They are managed downstream in PROV.
+Contacts, subscriber management (invite/creation), subscriber listing, and subscriber devices are not exposed as active MDU contract routes in Phase 1. They are managed downstream in PROV.
 
 These API families are indicative workflow groupings for Phase 1. They are not a strict one-to-one route inventory and do not require MDU to mirror downstream route structure exactly.
 
@@ -263,11 +263,8 @@ The exact MDU route may vary, but the read workflow is the same.
 
 Examples include:
 
-- `/api/v1/operators/*` using PROV `/operator` routes
 - `/api/v1/entities/*` using PROV `/entity` routes
 - `/api/v1/venues/*` using PROV `/venue` routes
-- `/api/v1/policies/*` using PROV `/managementPolicy` routes
-- `/api/v1/roles/*` using PROV `/managementRole` routes
 
 MDU may reshape or rename fields, but PROV remains the source of truth.
 
@@ -470,48 +467,32 @@ To list, assign, or remove user bindings to entity and venue scopes:
 ### 3. Excluded Contact Workflows
 Contacts and Operator Contacts (backed by PROV `/contact` and `/operatorContact` routes) are out of scope for MDU in Phase 1 and are not exposed as active MDU endpoints.
 
-### 4. Operator Management (PROV via MDU & Direct)
-To manage operator profile details (retrieval, updates, and deletion through the MDU facade, or list and create operations directly to PROV):
-* **MDU Northbound API Endpoints:**
-  * **Operator Paths:**
-    * `GET /api/v1/operators/{operatorId}` (Retrieve operator details)
-    * `PUT /api/v1/operators/{operatorId}` (Update operator details)
-    * `DELETE /api/v1/operators/{operatorId}` (Delete an operator)
-* **Direct UI/Client API Endpoints (Bypassing MDU):**
-  * `GET /operator` (List all operators in PROV)
-  * `POST /operator/{uuid}` (Create a new operator in PROV; `{uuid}` must be set to `00000000-0000-0000-0000-000000000000` or `0` for new creation)
-* **Orchestration Flow:**
-  * **Hybrid Routing Model:** Standard client applications (e.g. the MDU UI) call PROV directly to list operators (`GET /operator`) and create a new operator (`POST /operator/{uuid}` where `{uuid}` is set to the nil/zero UUID `00000000-0000-0000-0000-000000000000` or `0`). Detail-level operations such as retrieving details, updating name/description, or deleting an operator are routed through the MDU facade. The MDU facade routes enforce OWSEC bearer authentication, while direct PROV list/create operations follow their own approved authentication paths.
+### 4. Operator Management (Direct-Callable on PROV)
+Operators bypass the MDU service entirely. Northbound clients query operators directly on PROV:
+* `GET /api/v1/operator` (List all operators in PROV)
+* `POST /api/v1/operator/{uuid}` (Create operator)
+* `GET /api/v1/operator/{operatorId}` (Retrieve operator details)
+* `PUT /api/v1/operator/{operatorId}` (Update operator details)
+* `DELETE /api/v1/operator/{operatorId}` (Delete operator)
 
-### 4a. Management Policies & Roles (PROV via MDU)
-To retrieve, create, update, or delete management policies and roles:
-* **MDU Northbound API Endpoints:**
-  * **Policies:**
-    * `GET /api/v1/policies` (List management policies)
-    * `POST /api/v1/policies` (Create management policy)
-    * `GET /api/v1/policies/{policyId}` (Get policy details)
-    * `PUT /api/v1/policies/{policyId}` (Update policy)
-    * `DELETE /api/v1/policies/{policyId}` (Delete policy)
-  * **Roles:**
-    * `GET /api/v1/roles` (List management roles)
-    * `POST /api/v1/roles` (Create management role)
-    * `GET /api/v1/roles/{roleId}` (Get role details)
-    * `PUT /api/v1/roles/{roleId}` (Update role)
-    * `DELETE /api/v1/roles/{roleId}` (Delete role)
-* **Downstream PROV API Endpoints:**
-  * `GET /managementPolicy`, `POST /managementPolicy`, `PUT /managementPolicy/{uuid}`, `DELETE /managementPolicy/{uuid}`
-  * `GET /managementRole`, `POST /managementRole`, `PUT /managementRole/{id}`, `DELETE /managementRole/{id}`
-* **Orchestration Flow:**
-  * **Façade Pattern:** MDU acts as a stateless pass-through for policies and roles, forwarding the requests directly to the downstream PROV endpoints, translating schemas where necessary.
+### 4a. Management Policies & Roles (Direct-Callable on PROV)
+Management Policies and Roles are not wrapped by MDU. Northbound clients query them directly on PROV:
+* **Policies:**
+  * `GET /api/v1/managementPolicy` (List policies)
+  * `POST /api/v1/managementPolicy` (Create policy)
+  * `GET /api/v1/managementPolicy/{policyId}` (Get policy details)
+  * `PUT /api/v1/managementPolicy/{policyId}` (Update policy)
+  * `DELETE /api/v1/managementPolicy/{policyId}` (Delete policy)
+* **Roles:**
+  * `GET /api/v1/managementRole` (List roles)
+  * `POST /api/v1/managementRole` (Create role)
+  * `GET /api/v1/managementRole/{roleId}` (Get role details)
+  * `PUT /api/v1/managementRole/{roleId}` (Update role)
+  * `DELETE /api/v1/managementRole/{roleId}` (Delete role)
 
-### 5. Operator-scoped Subscriber Management (PROV via MDU)
-To list subscriber accounts associated with a specific operator:
-* **MDU Northbound API Endpoints:**
-  * `GET /api/v1/operators/{operatorId}/subscribers` (List subscribers)
-* **Downstream PROV API Endpoints:**
-  * `GET /subscriber`
-* **Orchestration Flow:**
-  * **List Subscribers (Constrained):** MDU calls PROV `GET /subscriber?listOnly=true` to retrieve all signup entries, filters the results to only include those matching the target `operatorId` parameter, and returns the filtered subset as a simple, unpaginated list.
+### 5. Subscriber Management (Direct-Callable on PROV)
+Subscriber listings are retrieved directly from PROV's signup endpoint:
+* `GET /api/v1/signup` (List signups / subscribers)
 ---
 
 # 9. Timeout and Retry Behavior
