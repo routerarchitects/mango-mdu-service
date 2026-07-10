@@ -187,7 +187,7 @@ func TestNewModuleValidation(t *testing.T) {
 		PrivateAuthConfig: auth.InternalAPIKeyConfig{
 			ExpectedAPIKey: "test-secret",
 		},
-		SessionHandler:  nil, // missing
+		SessionHandler: nil, // missing
 	}
 
 	module, err := NewModule(deps)
