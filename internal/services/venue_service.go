@@ -173,7 +173,7 @@ func (s *VenueService) DeleteVenue(reqCtx prov.RequestContext, uuidStr string) e
 }
 
 func (s *VenueService) ListVenues(reqCtx prov.RequestContext, limit, offset int) (*models.VenueListResponse, error) {
-	provList, err := s.provClient.ListVenues(reqCtx, limit, offset)
+	provList, err := s.provClient.ListVenues(reqCtx, 1000, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -188,10 +188,21 @@ func (s *VenueService) ListVenues(reqCtx prov.RequestContext, limit, offset int)
 		items = append(items, s.mapProvToVenueSummary(&ven, nodeMap, nodePathMap, entityMap, venueMap, roleMap))
 	}
 
+	total := len(items)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	paginated := items[start:end]
+
 	return &models.VenueListResponse{
-		Items: items,
+		Items: paginated,
 		Metadata: models.ListMetadata{
-			Total:  len(items),
+			Total:  total,
 			Limit:  limit,
 			Offset: offset,
 		},

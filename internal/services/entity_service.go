@@ -179,7 +179,7 @@ func (s *EntityService) DeleteEntity(reqCtx prov.RequestContext, uuidStr string)
 }
 
 func (s *EntityService) ListEntities(reqCtx prov.RequestContext, limit, offset int) (*models.EntityListResponse, error) {
-	provList, err := s.provClient.ListEntities(reqCtx, limit, offset)
+	provList, err := s.provClient.ListEntities(reqCtx, 1000, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -194,10 +194,21 @@ func (s *EntityService) ListEntities(reqCtx prov.RequestContext, limit, offset i
 		items = append(items, s.mapProvToEntitySummary(&ent, nodeMap, nodePathMap, entityMap, venueMap, roleMap))
 	}
 
+	total := len(items)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	paginated := items[start:end]
+
 	return &models.EntityListResponse{
-		Items: items,
+		Items: paginated,
 		Metadata: models.ListMetadata{
-			Total:  len(items), // In a real backend this would be database total, but since we map stateless list we can use len
+			Total:  total,
 			Limit:  limit,
 			Offset: offset,
 		},
