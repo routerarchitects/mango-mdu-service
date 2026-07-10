@@ -85,6 +85,10 @@ func (h *AssignmentHandler) GetAccessPolicy(c fiber.Ctx) error {
 	scope := c.Query("scope")
 	entityID := c.Query("entityId")
 	venueID := c.Query("venueId")
+	roleTemplate := c.Query("roleTemplate")
+	if roleTemplate == "" {
+		roleTemplate = c.Query("role")
+	}
 
 	if scope != "entity" && scope != "venue" {
 		return apperror.New(apperror.CodeInvalidInput, "scope must be 'entity' or 'venue'")
@@ -102,7 +106,7 @@ func (h *AssignmentHandler) GetAccessPolicy(c fiber.Ctx) error {
 		}
 	}
 
-	resp, err := h.service.GetAccessPolicy(reqCtx, userID, scope, entityID, venueID)
+	resp, err := h.service.GetAccessPolicy(reqCtx, userID, scope, entityID, venueID, roleTemplate)
 	if err != nil {
 		return err
 	}

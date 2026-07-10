@@ -329,7 +329,7 @@ func (s *AssignmentService) DeleteAssignment(reqCtx prov.RequestContext, userID 
 	return err
 }
 
-func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID string, scope string, entityID string, venueID string) (*models.UserAccessPolicy, error) {
+func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID string, scope string, entityID string, venueID string, roleTemplate string) (*models.UserAccessPolicy, error) {
 	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
 	if err != nil {
 		return nil, err
@@ -346,6 +346,10 @@ func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID s
 		}
 
 		if userBound {
+			if roleTemplate != "" && r.Info.Name != roleTemplate {
+				continue
+			}
+
 			if scope == "entity" && r.Entity == entityID {
 				targetRole = &r
 				break
@@ -411,6 +415,10 @@ func (s *AssignmentService) UpdateAccessPolicy(reqCtx prov.RequestContext, userI
 		}
 
 		if userBound {
+			if policy.RoleTemplate != "" && r.Info.Name != policy.RoleTemplate {
+				continue
+			}
+
 			if policy.Scope == "entity" && r.Entity == policy.EntityID {
 				targetRole = &r
 				break

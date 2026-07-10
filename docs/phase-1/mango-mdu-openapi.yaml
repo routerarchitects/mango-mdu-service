@@ -643,6 +643,7 @@ paths:
         - $ref: '#/components/parameters/ScopeQueryRequired'
         - $ref: '#/components/parameters/EntityIdQueryRequired'
         - $ref: '#/components/parameters/VenueIdQuery'
+        - $ref: '#/components/parameters/RoleTemplateQuery'
       responses:
         '200':
           description: Access policy details
@@ -803,6 +804,13 @@ components:
       description: Target venue scope. Required only when scope is venue (in which case both entityId and venueId must be specified).
       schema:
         $ref: '#/components/schemas/Id'
+    RoleTemplateQuery:
+      name: roleTemplate
+      in: query
+      required: false
+      description: Target role template name (e.g. admin, support). Helpful when a user has multiple assignments at the same scope.
+      schema:
+        $ref: '#/components/schemas/RoleKey'
     AssignmentIdPath:
       name: assignmentId
       in: path

@@ -123,6 +123,24 @@ func TestGranularHandlers(t *testing.T) {
 					Entity:           "ent-1",
 					Users:            []string{"user-123"},
 				},
+				{
+					Info: provclient.ProvObjectInfo{
+						ID:   "rol-multi-admin",
+						Name: "admin",
+					},
+					ManagementPolicy: "pol-multi-admin",
+					Entity:           "ent-1",
+					Users:            []string{"user-multi-roles"},
+				},
+				{
+					Info: provclient.ProvObjectInfo{
+						ID:   "rol-multi-support",
+						Name: "support",
+					},
+					ManagementPolicy: "pol-multi-support",
+					Entity:           "ent-1",
+					Users:            []string{"user-multi-roles"},
+				},
 			}
 			json.NewEncoder(w).Encode(provclient.ProvManagementRoleList{Roles: list})
 			return
@@ -240,6 +258,24 @@ func TestGranularHandlers(t *testing.T) {
 						Resources: []string{"inventory"},
 						Access:    []string{"READ", "MODIFY"},
 						Policy:    `{"type":"entity","entityId":"ent-2","includeVenues":true,"includeChildEntities":true}`,
+					},
+				}
+			} else if id == "pol-multi-admin" {
+				entries = []provclient.ProvManagementPolicyEntry{
+					{
+						Users:     []string{"user-multi-roles"},
+						Resources: []string{"configuration"},
+						Access:    []string{"FULL"},
+						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
+					},
+				}
+			} else if id == "pol-multi-support" {
+				entries = []provclient.ProvManagementPolicyEntry{
+					{
+						Users:     []string{"user-multi-roles"},
+						Resources: []string{"inventory"},
+						Access:    []string{"READ"},
+						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
 					},
 				}
 			} else {
@@ -1064,6 +1100,72 @@ func TestGranularHandlers(t *testing.T) {
 		}
 		if len(policyResp.ResourcePermissions) != 2 {
 			t.Errorf("expected 2 resource permissions, got: %d", len(policyResp.ResourcePermissions))
+		}
+	})
+
+	t.Run("GET Scoped Access Policy with roleTemplate filtering", func(t *testing.T) {
+		// 1. Query roleTemplate = admin
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-multi-roles/access-policy?scope=entity&entityId=ent-1&roleTemplate=admin", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+		var policyResp models.UserAccessPolicy
+		json.NewDecoder(resp.Body).Decode(&policyResp)
+		if policyResp.RoleTemplate != "admin" || len(policyResp.ResourcePermissions) != 1 || policyResp.ResourcePermissions[0].Resource != "configuration" {
+			t.Errorf("unexpected access policy details: %+v", policyResp)
+		}
+
+		// 2. Query roleTemplate = support
+		req2, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-multi-roles/access-policy?scope=entity&entityId=ent-1&roleTemplate=support", nil)
+		resp2, err := app.Test(req2)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp2.Body.Close()
+		if resp2.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp2.StatusCode)
+		}
+		var policyResp2 models.UserAccessPolicy
+		json.NewDecoder(resp2.Body).Decode(&policyResp2)
+		if policyResp2.RoleTemplate != "support" || len(policyResp2.ResourcePermissions) != 1 || policyResp2.ResourcePermissions[0].Resource != "inventory" {
+			t.Errorf("unexpected access policy details: %+v", policyResp2)
+		}
+	})
+
+	t.Run("PUT Scoped Access Policy with roleTemplate filtering", func(t *testing.T) {
+		payload := `{
+			"scope": "entity",
+			"entityId": "ent-1",
+			"roleTemplate": "support",
+			"resourcePermissions": [
+				{
+					"resource": "inventory",
+					"policies": ["FULL"]
+				}
+			]
+		}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-multi-roles/access-policy", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var policyResp models.UserAccessPolicy
+		json.NewDecoder(resp.Body).Decode(&policyResp)
+
+		if policyResp.RoleTemplate != "support" || len(policyResp.ResourcePermissions) != 1 || policyResp.ResourcePermissions[0].Policies[0] != "FULL" {
+			t.Errorf("unexpected updated access policy: %+v", policyResp)
 		}
 	})
 
