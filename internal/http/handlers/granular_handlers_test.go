@@ -1604,6 +1604,36 @@ func TestGranularHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("GET Access Policy - Venue and Entity mismatch returns 400 Bad Request", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=venue&entityId=ent-2&venueId=ven-1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("PUT Access Policy - Venue and Entity mismatch returns 400 Bad Request", func(t *testing.T) {
+		payload := `{"scope":"venue","entityId":"ent-2","venueId":"ven-1","roleTemplate":"admin","resourcePermissions":[{"resource":"configuration","policies":["READ"]}]}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
 	// 47. GET /api/v1/session - Downstream PROV error maps to 503
 	t.Run("GET Session - Downstream PROV error maps to 503", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)

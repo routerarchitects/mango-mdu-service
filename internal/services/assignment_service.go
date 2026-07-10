@@ -330,6 +330,20 @@ func (s *AssignmentService) DeleteAssignment(reqCtx prov.RequestContext, userID 
 }
 
 func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID string, scope string, entityID string, venueID string, roleTemplate string) (*models.UserAccessPolicy, error) {
+	if scope == "venue" && venueID != "" {
+		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
+		if err != nil {
+			return nil, err
+		}
+		v, ok := venueMap[venueID]
+		if !ok {
+			return nil, apperror.New(apperror.CodeNotFound, "venue not found")
+		}
+		if v.Entity != entityID {
+			return nil, apperror.New(apperror.CodeInvalidInput, "the specified venue does not belong to the specified entity")
+		}
+	}
+
 	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, err
@@ -380,14 +394,6 @@ func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID s
 	}
 
 	resolvedEntityID := entityID
-	if scope == "venue" && venueID != "" {
-		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
-		if err == nil {
-			if v, ok := venueMap[venueID]; ok && v.Entity != "" {
-				resolvedEntityID = v.Entity
-			}
-		}
-	}
 
 	return &models.UserAccessPolicy{
 		Scope:               scope,
@@ -399,6 +405,20 @@ func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID s
 }
 
 func (s *AssignmentService) UpdateAccessPolicy(reqCtx prov.RequestContext, userID string, policy *models.UserAccessPolicy) (*models.UserAccessPolicy, error) {
+	if policy.Scope == "venue" && policy.VenueID != "" {
+		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
+		if err != nil {
+			return nil, err
+		}
+		v, ok := venueMap[policy.VenueID]
+		if !ok {
+			return nil, apperror.New(apperror.CodeNotFound, "venue not found")
+		}
+		if v.Entity != policy.EntityID {
+			return nil, apperror.New(apperror.CodeInvalidInput, "the specified venue does not belong to the specified entity")
+		}
+	}
+
 	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, err
