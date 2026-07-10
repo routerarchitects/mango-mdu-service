@@ -35,6 +35,7 @@ type Client struct {
 	httpClient   *http.Client
 	internalName string
 	BaseURL      string // For testing override
+	AuthEnabled  bool
 }
 
 func NewClient(discovery *servicediscovery.Discovery, tlsRootCA string, internalName string) (*Client, error) {
@@ -62,6 +63,7 @@ func NewClient(discovery *servicediscovery.Discovery, tlsRootCA string, internal
 			Timeout:   10 * time.Second,
 		},
 		internalName: internalName,
+		AuthEnabled:  true,
 	}, nil
 }
 
@@ -115,6 +117,31 @@ func (c *Client) sendRequest(ctx context.Context, method, path string, rawToken 
 }
 
 func (c *Client) ValidateToken(ctx context.Context, rawToken string) (*UserInfo, error) {
+	if !c.AuthEnabled {
+		userID := "00000000-0000-0000-0000-000000000000"
+		userEmail := "mdu-admin@example.com"
+		userName := "MDU Admin"
+		userRole := "admin"
+
+		token := strings.TrimSpace(rawToken)
+		if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+			token = strings.TrimSpace(token[7:])
+		}
+		if token != "" && !strings.Contains(token, ".") {
+			userID = token
+			userName = "Mock User " + token
+			userEmail = token + "@example.com"
+		}
+
+		return &UserInfo{
+			ID:       userID,
+			Email:    userEmail,
+			Name:     userName,
+			Owner:    "00000000-0000-0000-0000-000000000000",
+			UserRole: userRole,
+		}, nil
+	}
+
 	token := strings.TrimSpace(rawToken)
 	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
 		token = strings.TrimSpace(token[7:])

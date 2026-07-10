@@ -7,12 +7,14 @@ import (
 )
 
 type SessionHandler struct {
-	service *services.SessionService
+	service     *services.SessionService
+	AuthEnabled bool
 }
 
-func NewSessionHandler(service *services.SessionService) *SessionHandler {
+func NewSessionHandler(service *services.SessionService, authEnabled bool) *SessionHandler {
 	return &SessionHandler{
-		service: service,
+		service:     service,
+		AuthEnabled: authEnabled,
 	}
 }
 
@@ -22,7 +24,7 @@ func (h *SessionHandler) Register(router fiber.Router) {
 
 func (h *SessionHandler) GetSessionContext(c fiber.Ctx) error {
 	token := c.Get("Authorization")
-	if token == "" {
+	if token == "" && h.AuthEnabled {
 		return apperror.New(apperror.CodeUnauthorized, "unauthorized")
 	}
 

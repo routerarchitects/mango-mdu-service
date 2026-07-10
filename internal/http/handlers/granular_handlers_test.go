@@ -353,7 +353,7 @@ func TestGranularHandlers(t *testing.T) {
 	entityHandler := handlers.NewEntityHandler(entityService)
 
 	sessionService := services.NewSessionService(secClient, provClient)
-	sessionHandler := handlers.NewSessionHandler(sessionService)
+	sessionHandler := handlers.NewSessionHandler(sessionService, true)
 
 	hierarchyService := services.NewHierarchyService(provClient)
 	hierarchyHandler := handlers.NewHierarchyHandler(hierarchyService)
@@ -442,6 +442,34 @@ func TestGranularHandlers(t *testing.T) {
 
 		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("expected status 401, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("GET Session - Auth Disabled (AUTH_ENABLED=false)", func(t *testing.T) {
+		sessionHandler.AuthEnabled = false
+		secClient.AuthEnabled = false
+		defer func() {
+			sessionHandler.AuthEnabled = true
+			secClient.AuthEnabled = true
+		}()
+
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("X-Test-Bypass-Auth", "true")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var sessResp models.SessionContext
+		json.NewDecoder(resp.Body).Decode(&sessResp)
+
+		if sessResp.User.ID != "00000000-0000-0000-0000-000000000000" || sessResp.User.Role != "admin" {
+			t.Errorf("unexpected session context user: %+v", sessResp.User)
 		}
 	})
 

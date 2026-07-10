@@ -85,7 +85,7 @@ func TestModuleAuthenticationAndHeaderPropagation(t *testing.T) {
 
 	// Services & Handlers
 	sessionService := services.NewSessionService(secClient, provClient)
-	sessionHandler := handlers.NewSessionHandler(sessionService)
+	sessionHandler := handlers.NewSessionHandler(sessionService, true)
 
 	hierarchyService := services.NewHierarchyService(provClient)
 	hierarchyHandler := handlers.NewHierarchyHandler(hierarchyService)

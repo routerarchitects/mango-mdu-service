@@ -101,13 +101,14 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 			database.Close()
 			return nil, fmt.Errorf("failed to create sec client: %w", err)
 		}
+		secClient.AuthEnabled = cfg.Auth.Enabled
 
 		if cfg.RPC.Enabled {
 			tokenValidator = sec.NewClientAdapter(secClient)
 		}
 
 		sessionService := services.NewSessionService(secClient, provClient)
-		sessionHandler = handlers.NewSessionHandler(sessionService)
+		sessionHandler = handlers.NewSessionHandler(sessionService, cfg.Auth.Enabled)
 
 		hierarchyService := services.NewHierarchyService(provClient)
 		hierarchyHandler = handlers.NewHierarchyHandler(hierarchyService)
