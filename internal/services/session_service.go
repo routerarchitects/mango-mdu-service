@@ -147,24 +147,39 @@ func (s *SessionService) GetSessionContext(reqCtx prov.RequestContext) (*models.
 		LastLoginAt: &now,
 	}
 
-	// 5. Build permissions dynamically from active assignment policy in PROV
+	// 5. Build permissions dynamically from active assignment policies in PROV
 	var permissions models.EffectivePermissionSet
+	// If no assignments are active, permissions are completely hidden/denied.
+	// PROV is the only source of truth for RBAC.
+	permissions = models.EffectivePermissionSet{
+		Hierarchy:      models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Users:          models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Billing:        models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Configurations: models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+		Devices:        models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+	}
+
 	if len(assignments) > 0 {
-		activePolicyID := assignments[0].ManagementPolicyID
-		policy, err := s.provClient.GetPolicy(reqCtx, activePolicyID)
-		if err != nil {
-			return nil, err
+		uniquePolicyIDs := make(map[string]bool)
+		for _, ass := range assignments {
+			if ass.ManagementPolicyID != "" {
+				uniquePolicyIDs[ass.ManagementPolicyID] = true
+			}
 		}
-		permissions = derivePermissionsFromPolicy(policy)
-	} else {
-		// If no assignments are active, permissions are completely hidden/denied.
-		// PROV is the only source of truth for RBAC.
-		permissions = models.EffectivePermissionSet{
-			Hierarchy:      models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
-			Users:          models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
-			Billing:        models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
-			Configurations: models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
-			Devices:        models.RbacDecision{Allowed: false, Mode: "hidden", Reason: "Insufficient privileges"},
+
+		first := true
+		for policyID := range uniquePolicyIDs {
+			policy, err := s.provClient.GetPolicy(reqCtx, policyID)
+			if err != nil {
+				return nil, err
+			}
+			policyPermissions := derivePermissionsFromPolicy(policy)
+			if first {
+				permissions = policyPermissions
+				first = false
+			} else {
+				permissions = mergePermissionSets(permissions, policyPermissions)
+			}
 		}
 	}
 
@@ -256,4 +271,28 @@ func derivePermissionsFromPolicy(policy *prov.ProvManagementPolicy) models.Effec
 	}
 
 	return res
+}
+
+func mergeDecisions(d1, d2 models.RbacDecision) models.RbacDecision {
+	if d1.Mode == "interactive" || d2.Mode == "interactive" {
+		return models.RbacDecision{Allowed: true, Mode: "interactive"}
+	}
+	if d1.Mode == "read_only" || d2.Mode == "read_only" {
+		return models.RbacDecision{Allowed: true, Mode: "read_only"}
+	}
+	reason := d1.Reason
+	if reason == "" {
+		reason = d2.Reason
+	}
+	return models.RbacDecision{Allowed: false, Mode: "hidden", Reason: reason}
+}
+
+func mergePermissionSets(p1, p2 models.EffectivePermissionSet) models.EffectivePermissionSet {
+	return models.EffectivePermissionSet{
+		Hierarchy:      mergeDecisions(p1.Hierarchy, p2.Hierarchy),
+		Users:          mergeDecisions(p1.Users, p2.Users),
+		Billing:        mergeDecisions(p1.Billing, p2.Billing),
+		Configurations: mergeDecisions(p1.Configurations, p2.Configurations),
+		Devices:        mergeDecisions(p1.Devices, p2.Devices),
+	}
 }

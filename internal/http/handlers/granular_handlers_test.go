@@ -87,6 +87,32 @@ func TestGranularHandlers(t *testing.T) {
 
 		// 2. Roles list/creation
 		if r.URL.Path == "/api/v1/managementRole" {
+			authHeader := r.Header.Get("Authorization")
+			if strings.Contains(authHeader, "multi-policy-user") {
+				list := []provclient.ProvManagementRole{
+					{
+						Info: provclient.ProvObjectInfo{
+							ID:   "rol-read-only",
+							Name: "admin",
+						},
+						ManagementPolicy: "pol-read-only",
+						Entity:           "ent-1",
+						Users:            []string{"multi-policy-user"},
+					},
+					{
+						Info: provclient.ProvObjectInfo{
+							ID:   "rol-interactive",
+							Name: "admin",
+						},
+						ManagementPolicy: "pol-interactive",
+						Entity:           "ent-2",
+						Users:            []string{"multi-policy-user"},
+					},
+				}
+				json.NewEncoder(w).Encode(provclient.ProvManagementRoleList{Roles: list})
+				return
+			}
+
 			list := []provclient.ProvManagementRole{
 				{
 					Info: provclient.ProvObjectInfo{
@@ -192,20 +218,43 @@ func TestGranularHandlers(t *testing.T) {
 				return
 			}
 			// For Get, Post or Put
-			pol := provclient.ProvManagementPolicy{
-				Info: provclient.ProvObjectInfo{
-					ID:   id,
-					Name: "Policy " + id,
-				},
-				Entity: "ent-1",
-				Entries: []provclient.ProvManagementPolicyEntry{
+			var entries []provclient.ProvManagementPolicyEntry
+			if id == "pol-read-only" {
+				entries = []provclient.ProvManagementPolicyEntry{
+					{
+						Users:     []string{"multi-policy-user"},
+						Resources: []string{"configuration"},
+						Access:    []string{"READ"},
+						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
+					},
+				}
+			} else if id == "pol-interactive" {
+				entries = []provclient.ProvManagementPolicyEntry{
+					{
+						Users:     []string{"multi-policy-user"},
+						Resources: []string{"inventory"},
+						Access:    []string{"READ", "MODIFY"},
+						Policy:    `{"type":"entity","entityId":"ent-2","includeVenues":true,"includeChildEntities":true}`,
+					},
+				}
+			} else {
+				entries = []provclient.ProvManagementPolicyEntry{
 					{
 						Users:     []string{"user-123"},
 						Resources: []string{"configuration", "inventory"},
 						Access:    []string{"READ", "MODIFY"},
 						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
 					},
+				}
+			}
+
+			pol := provclient.ProvManagementPolicy{
+				Info: provclient.ProvObjectInfo{
+					ID:   id,
+					Name: "Policy " + id,
 				},
+				Entity:  "ent-1",
+				Entries: entries,
 			}
 			json.NewEncoder(w).Encode(pol)
 			return
@@ -316,9 +365,13 @@ func TestGranularHandlers(t *testing.T) {
 				w.Write([]byte(`{"error":"mock sec server error"}`))
 				return
 			}
+			userID := "user-123"
+			if token == "multi-policy-user" {
+				userID = "multi-policy-user"
+			}
 			userInfo := secclient.UserInfo{
-				ID:       "user-123",
-				Email:    "test@example.com",
+				ID:       userID,
+				Email:    userID + "@example.com",
 				Name:     "Test User",
 				Owner:    "owner-123",
 				UserRole: "admin",
@@ -427,6 +480,33 @@ func TestGranularHandlers(t *testing.T) {
 
 		if sessResp.User.Name != "Test User" || sessResp.User.Role != "admin" {
 			t.Errorf("unexpected session context user: %+v", sessResp.User)
+		}
+	})
+
+	t.Run("GET Session - Positive (Multiple Policies)", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("Authorization", "Bearer multi-policy-user")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		}
+
+		var sessResp models.SessionContext
+		json.NewDecoder(resp.Body).Decode(&sessResp)
+
+		if sessResp.Permissions.Configurations.Mode != "read_only" {
+			t.Errorf("expected configurations mode to be read_only, got %q", sessResp.Permissions.Configurations.Mode)
+		}
+		if sessResp.Permissions.Devices.Mode != "interactive" {
+			t.Errorf("expected devices mode to be interactive, got %q", sessResp.Permissions.Devices.Mode)
+		}
+		if sessResp.Permissions.Hierarchy.Mode != "hidden" {
+			t.Errorf("expected hierarchy mode to be hidden, got %q", sessResp.Permissions.Hierarchy.Mode)
 		}
 	})
 
