@@ -95,7 +95,7 @@ Rules:
 These are operationally sensitive APIs.
 
 Rules:
-- Must be private/internal or tightly restricted.
+- Must be private/internal or tightly restricted (with the approved exception of `/api/v1/system`, which is registered on both public and private ports with a multi-mode authentication rule).
 - Must require an explicit authorization model.
 - Must not leak backend internals to normal consumers.
 - Must be excluded from standard UI-facing contracts unless intentionally exposed.
