@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
@@ -178,21 +177,25 @@ func TestModuleAuthenticationAndHeaderPropagation(t *testing.T) {
 }
 
 func TestNewModuleValidation(t *testing.T) {
-	// Test that NewModule returns an error if any required business handlers are nil
+	// Test that NewModule succeeds even if required business handlers are nil
 	deps := Dependencies{
 		ServerLogger:    slog.New(slog.NewJSONHandler(ioDiscard{}, nil)),
 		ServerConfig:    config.ServerConfig{},
 		SubsystemConfig: subsystemroutes.Config{},
 		AuthEnabled:     true,
 		TokenValidator:  &mockTokenValidator{validToken: "my-valid-bearer-token"},
+		PrivateAuthConfig: auth.InternalAPIKeyConfig{
+			ExpectedAPIKey: "test-secret",
+		},
 		SessionHandler:  nil, // missing
 	}
 
-	_, err := NewModule(deps)
-	if err == nil {
-		t.Errorf("expected NewModule to return error when session handler is nil, but got nil")
-	} else if !strings.Contains(err.Error(), "missing required business handlers") {
-		t.Errorf("expected error message to contain 'missing required business handlers', got: %v", err)
+	module, err := NewModule(deps)
+	if err != nil {
+		t.Fatalf("expected NewModule to succeed even with missing business handlers, got error: %v", err)
+	}
+	if module == nil {
+		t.Errorf("expected module to be initialized, got nil")
 	}
 }
 

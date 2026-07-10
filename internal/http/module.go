@@ -37,14 +37,15 @@ type Module struct {
 	privateApp *fiber.App
 }
 
-// NewModule initializes the HTTP apps, CORS, loggers, auth middlewares, and routes.
 func NewModule(deps Dependencies) (*Module, error) {
 	if deps.SessionHandler == nil ||
 		deps.HierarchyHandler == nil ||
 		deps.EntityHandler == nil ||
 		deps.VenueHandler == nil ||
 		deps.AssignmentHandler == nil {
-		return nil, fmt.Errorf("missing required business handlers for public API; discovery must be enabled")
+		if deps.ServerLogger != nil {
+			deps.ServerLogger.Warn("one or more required business handlers are nil; some public API endpoints will not be registered")
+		}
 	}
 
 	authMiddleware, err := middleware.NewServiceAuth(
