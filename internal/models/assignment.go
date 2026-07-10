@@ -25,7 +25,7 @@ type CreateUserAssignmentRequest struct {
 }
 
 type ResourcePermission struct {
-	Resource string   `json:"resource"` // entity, venue, operator, inventory, configuration, management policy, management role
+	Resource string   `json:"resource"` // entity, venue, operator, inventory, configuration, managementPolicy, managementRole
 	Policies []string `json:"policies"` // PolicyAccessKey: NOACCESS, READ, MODIFY, DELETE, LIST, CREATE, FULL
 }
 

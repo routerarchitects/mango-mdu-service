@@ -1513,7 +1513,7 @@ components:
       properties:
         resource:
           type: string
-          enum: [entity, venue, operator, inventory, configuration, management policy, management role]
+          enum: [entity, venue, operator, inventory, configuration, managementPolicy, managementRole]
         policies:
           type: array
           items:
