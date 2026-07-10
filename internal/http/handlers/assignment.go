@@ -85,6 +85,10 @@ func (h *AssignmentHandler) CreateAssignment(c fiber.Ctx) error {
 		return apperror.New(apperror.CodeInvalidInput, "scopeType must be 'entity' or 'venue'")
 	}
 
+	if !validRoleKeys[req.Role] {
+		return apperror.New(apperror.CodeInvalidInput, "invalid role template")
+	}
+
 	resp, isAlreadyAssigned, err := h.service.CreateAssignment(reqCtx, userID, &req)
 	if err != nil {
 		return err

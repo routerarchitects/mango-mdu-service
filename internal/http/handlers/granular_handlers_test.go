@@ -1492,6 +1492,22 @@ func TestGranularHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("POST Create Assignment - Invalid role returns 400 Bad Request", func(t *testing.T) {
+		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"invalid-role"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
 	t.Run("POST Create Assignment - Downstream ListPolicies error maps to 503", func(t *testing.T) {
 		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
 		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-456/assignments", strings.NewReader(payload))
