@@ -134,10 +134,10 @@ func TestGranularHandlers(t *testing.T) {
 				},
 				{
 					Info: provclient.ProvObjectInfo{
-						ID:   "rol-multi-support",
-						Name: "support",
+						ID:   "rol-multi-csr",
+						Name: "csr",
 					},
-					ManagementPolicy: "pol-multi-support",
+					ManagementPolicy: "pol-multi-csr",
 					Entity:           "ent-1",
 					Users:            []string{"user-multi-roles"},
 				},
@@ -269,7 +269,7 @@ func TestGranularHandlers(t *testing.T) {
 						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
 					},
 				}
-			} else if id == "pol-multi-support" {
+			} else if id == "pol-multi-csr" {
 				entries = []provclient.ProvManagementPolicyEntry{
 					{
 						Users:     []string{"user-multi-roles"},
@@ -1120,8 +1120,8 @@ func TestGranularHandlers(t *testing.T) {
 			t.Errorf("unexpected access policy details: %+v", policyResp)
 		}
 
-		// 2. Query roleTemplate = support
-		req2, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-multi-roles/access-policy?scope=entity&entityId=ent-1&roleTemplate=support", nil)
+		// 2. Query roleTemplate = csr
+		req2, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-multi-roles/access-policy?scope=entity&entityId=ent-1&roleTemplate=csr", nil)
 		resp2, err := app.Test(req2)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -1132,7 +1132,7 @@ func TestGranularHandlers(t *testing.T) {
 		}
 		var policyResp2 models.UserAccessPolicy
 		json.NewDecoder(resp2.Body).Decode(&policyResp2)
-		if policyResp2.RoleTemplate != "support" || len(policyResp2.ResourcePermissions) != 1 || policyResp2.ResourcePermissions[0].Resource != "inventory" {
+		if policyResp2.RoleTemplate != "csr" || len(policyResp2.ResourcePermissions) != 1 || policyResp2.ResourcePermissions[0].Resource != "inventory" {
 			t.Errorf("unexpected access policy details: %+v", policyResp2)
 		}
 	})
@@ -1141,7 +1141,7 @@ func TestGranularHandlers(t *testing.T) {
 		payload := `{
 			"scope": "entity",
 			"entityId": "ent-1",
-			"roleTemplate": "support",
+			"roleTemplate": "csr",
 			"resourcePermissions": [
 				{
 					"resource": "inventory",
@@ -1164,7 +1164,7 @@ func TestGranularHandlers(t *testing.T) {
 		var policyResp models.UserAccessPolicy
 		json.NewDecoder(resp.Body).Decode(&policyResp)
 
-		if policyResp.RoleTemplate != "support" || len(policyResp.ResourcePermissions) != 1 || policyResp.ResourcePermissions[0].Policies[0] != "FULL" {
+		if policyResp.RoleTemplate != "csr" || len(policyResp.ResourcePermissions) != 1 || policyResp.ResourcePermissions[0].Policies[0] != "FULL" {
 			t.Errorf("unexpected updated access policy: %+v", policyResp)
 		}
 	})
@@ -1634,6 +1634,104 @@ func TestGranularHandlers(t *testing.T) {
 	t.Run("GET Entity Venues - Invalid pagination limit returns 400", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities/ent-1/venues?limit=xyz", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 51. GET /api/v1/users/:userId/access-policy - invalid roleTemplate query param
+	t.Run("GET Access Policy - Invalid roleTemplate query parameter returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1&roleTemplate=invalid-role", nil)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 52. PUT /api/v1/users/:userId/access-policy - missing roleTemplate
+	t.Run("PUT Access Policy - Missing roleTemplate in body returns 400", func(t *testing.T) {
+		payload := `{"scope":"entity","entityId":"ent-1","resourcePermissions":[]}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 53. PUT /api/v1/users/:userId/access-policy - invalid roleTemplate
+	t.Run("PUT Access Policy - Invalid roleTemplate in body returns 400", func(t *testing.T) {
+		payload := `{"scope":"entity","entityId":"ent-1","roleTemplate":"invalid-role","resourcePermissions":[]}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 54. PUT /api/v1/users/:userId/access-policy - invalid resource
+	t.Run("PUT Access Policy - Invalid resource in resourcePermissions returns 400", func(t *testing.T) {
+		payload := `{
+			"scope": "entity",
+			"entityId": "ent-1",
+			"roleTemplate": "admin",
+			"resourcePermissions": [
+				{
+					"resource": "invalid-resource",
+					"policies": ["READ"]
+				}
+			]
+		}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	// 55. PUT /api/v1/users/:userId/access-policy - invalid policy
+	t.Run("PUT Access Policy - Invalid policy in resourcePermissions returns 400", func(t *testing.T) {
+		payload := `{
+			"scope": "entity",
+			"entityId": "ent-1",
+			"roleTemplate": "admin",
+			"resourcePermissions": [
+				{
+					"resource": "entity",
+					"policies": ["INVALID-POLICY"]
+				}
+			]
+		}`
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
