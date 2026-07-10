@@ -517,8 +517,8 @@ This section is a workflow-level error summary. The full normalized error model 
 
 If the request is invalid before downstream execution, MDU returns a normalized local error such as:
 
-- `validation_error`
-- `unauthorized`
+- `Bad Request`
+- `Unauthorized`
 
 ## OWSEC failures
 
@@ -528,24 +528,24 @@ If token validation fails, MDU returns an auth-related normalized error and stop
 
 If PROV denies access or scope, MDU returns the correct normalized Mango-facing access error such as:
 
-- `forbidden`
-- `not_found`
+- `Forbidden`
+- `Not Found`
 
 ## PROV dependency failures
 
 If PROV times out, becomes unavailable, or returns an invalid response, MDU maps that into normalized dependency errors such as:
 
-- `downstream_timeout`
-- `downstream_unavailable`
-- `bad_gateway`
-- `dependency_auth_failed`
-- `rate_limited`
+- `Gateway Timeout`
+- `Service Unavailable`
+- `Bad Gateway`
+- `Unauthorized` (dependency auth failed)
+- `Too Many Requests` (rate limited)
 
 ## Internal failures
 
 Unexpected failures map to:
 
-- `internal_error`
+- `Internal Server Error`
 
 If a route explicitly allows degraded or incomplete data, that behavior must be documented in the contract. Otherwise MDU should fail rather than return ambiguous mixed-success data.
 

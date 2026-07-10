@@ -455,19 +455,19 @@ MDU shall expose a consistent error envelope for UI-facing APIs.
 
 Normalized error categories shall include at minimum:
 
-- `validation_error`
-- `unauthorized`
-- `forbidden`
-- `not_found`
-- `conflict`
-- `rate_limited`
-- `bad_gateway`
-- `dependency_auth_failed`
-- `downstream_timeout`
-- `downstream_unavailable`
-- `not_implemented`
-- `partial_data`
-- `internal_error`
+- `Bad Request`
+- `Unauthorized`
+- `Forbidden`
+- `Not Found`
+- `Conflict`
+- `Too Many Requests`
+- `Bad Gateway`
+- `Unauthorized` (dependency auth failed)
+- `Gateway Timeout`
+- `Service Unavailable`
+- `Not Implemented`
+- `Partial Content`
+- `Internal Server Error`
 
 Rules:
 

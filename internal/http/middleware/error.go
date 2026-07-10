@@ -21,7 +21,7 @@ func ErrorHandler(c fiber.Ctx, err error) error {
 
 	// Default values
 	statusCode := http.StatusInternalServerError
-	errDesc := "internal_error"
+	errDesc := "Internal Server Error"
 	errDetails := err.Error()
 
 	// Check if fiber.Error (e.g. 404 route not found, 400 bad JSON)
@@ -69,39 +69,41 @@ func mapCodeToHttpStatus(code apperror.Code) int {
 func mapCodeToDesc(code apperror.Code) string {
 	switch code {
 	case apperror.CodeNotFound:
-		return "not_found"
+		return "Not Found"
 	case apperror.CodeInvalidInput:
-		return "validation_error"
+		return "Bad Request"
 	case apperror.CodeUnauthorized:
-		return "unauthorized"
+		return "Unauthorized"
 	case apperror.CodeForbidden:
-		return "forbidden"
+		return "Forbidden"
 	case apperror.CodeConflict:
-		return "conflict"
+		return "Conflict"
 	case apperror.Code("TIMEOUT"), apperror.Code("DOWNSTREAM_TIMEOUT"):
-		return "downstream_timeout"
+		return "Gateway Timeout"
 	case apperror.Code("DOWNSTREAM_UNAVAILABLE"):
-		return "service_unavailable"
+		return "Service Unavailable"
 	default:
-		return "internal_error"
+		return "Internal Server Error"
 	}
 }
 
 func mapHttpStatusToDesc(status int) string {
 	switch status {
 	case http.StatusBadRequest:
-		return "validation_error"
+		return "Bad Request"
 	case http.StatusUnauthorized:
-		return "unauthorized"
+		return "Unauthorized"
 	case http.StatusForbidden:
-		return "forbidden"
+		return "Forbidden"
 	case http.StatusNotFound:
-		return "not_found"
+		return "Not Found"
 	case http.StatusConflict:
-		return "conflict"
+		return "Conflict"
 	case http.StatusGatewayTimeout:
-		return "downstream_timeout"
+		return "Gateway Timeout"
+	case http.StatusServiceUnavailable:
+		return "Service Unavailable"
 	default:
-		return "internal_error"
+		return "Internal Server Error"
 	}
 }
