@@ -475,7 +475,6 @@ paths:
           $ref: '#/components/responses/BackendUnavailableError'
 
 
-
   /users/{userId}/assignments:
     get:
       tags: [Users]
@@ -1816,6 +1815,3 @@ components:
           $ref: '#/components/schemas/Id'
         venue:
           $ref: '#/components/schemas/Id'
-
-
-
