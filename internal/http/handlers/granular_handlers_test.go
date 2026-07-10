@@ -365,6 +365,16 @@ func TestGranularHandlers(t *testing.T) {
 				w.Write([]byte(`{"error":"mock sec server error"}`))
 				return
 			}
+			if token == "bad-request-token" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error":"bad request"}`))
+				return
+			}
+			if token == "malformed-json-token" {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`invalid-json-body`))
+				return
+			}
 			userID := "user-123"
 			if token == "multi-policy-user" {
 				userID = "multi-policy-user"
@@ -1291,6 +1301,36 @@ func TestGranularHandlers(t *testing.T) {
 
 		if resp.StatusCode != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("GET Session - Downstream SEC 400 maps to 401", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("X-Test-Bypass-Auth", "true")
+		req.Header.Set("Authorization", "Bearer bad-request-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected status 401 Unauthorized, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("GET Session - Downstream SEC malformed JSON maps to 500", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/session", nil)
+		req.Header.Set("X-Test-Bypass-Auth", "true")
+		req.Header.Set("Authorization", "Bearer malformed-json-token")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("expected status 500 Internal Server Error, got %d", resp.StatusCode)
 		}
 	})
 

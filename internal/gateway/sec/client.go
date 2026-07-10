@@ -159,17 +159,21 @@ func (c *Client) ValidateToken(ctx context.Context, rawToken string) (*UserInfo,
 
 	if tokenResp.StatusCode == http.StatusOK {
 		var valResp TokenValidationResponse
-		if err := json.NewDecoder(tokenResp.Body).Decode(&valResp); err == nil {
-			return &valResp.UserInfo, nil
+		if err := json.NewDecoder(tokenResp.Body).Decode(&valResp); err != nil {
+			return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode validateToken response (downstream contract drift)", err)
 		}
+		return &valResp.UserInfo, nil
 	}
 
-	if tokenResp.StatusCode == http.StatusUnauthorized || tokenResp.StatusCode == http.StatusForbidden || tokenResp.StatusCode == http.StatusNotFound {
+	if tokenResp.StatusCode == http.StatusUnauthorized ||
+		tokenResp.StatusCode == http.StatusForbidden ||
+		tokenResp.StatusCode == http.StatusNotFound ||
+		tokenResp.StatusCode == http.StatusBadRequest {
 		return nil, apperror.New(apperror.CodeUnauthorized, "unauthorized")
 	}
 
 	body, _ := io.ReadAll(tokenResp.Body)
-	return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("token validation failed (status=%d): %s", tokenResp.StatusCode, string(body)))
+	return nil, apperror.New(apperror.Code("DOWNSTREAM_UNAVAILABLE"), fmt.Sprintf("token validation failed (status=%d): %s", tokenResp.StatusCode, string(body)))
 }
 
 // ValidateAPIKey validates a public API key with owsec.
@@ -184,12 +188,15 @@ func (c *Client) ValidateAPIKey(ctx context.Context, apiKey string) error {
 		return nil
 	}
 
-	if tokenResp.StatusCode == http.StatusUnauthorized || tokenResp.StatusCode == http.StatusForbidden {
+	if tokenResp.StatusCode == http.StatusUnauthorized ||
+		tokenResp.StatusCode == http.StatusForbidden ||
+		tokenResp.StatusCode == http.StatusNotFound ||
+		tokenResp.StatusCode == http.StatusBadRequest {
 		return apperror.New(apperror.CodeUnauthorized, "unauthorized")
 	}
 
 	body, _ := io.ReadAll(tokenResp.Body)
-	return apperror.New(apperror.CodeInternal, fmt.Sprintf("API key validation failed (status=%d): %s", tokenResp.StatusCode, string(body)))
+	return apperror.New(apperror.Code("DOWNSTREAM_UNAVAILABLE"), fmt.Sprintf("API key validation failed (status=%d): %s", tokenResp.StatusCode, string(body)))
 }
 
 // ClientAdapter adapts *Client to satisfy the auth.PublicAuthValidator interface.
