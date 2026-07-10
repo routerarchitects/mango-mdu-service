@@ -232,9 +232,9 @@ func derivePermissionsFromPolicy(policy *prov.ProvManagementPolicy) models.Effec
 			}
 			if match {
 				for _, acc := range entry.Access {
-					if acc == "MODIFY" || acc == "DELETE" {
+					if acc == "FULL" || acc == "CREATE" || acc == "UPDATE" || acc == "MODIFY" || acc == "DELETE" {
 						hasWrite = true
-					} else if acc == "READ" {
+					} else if acc == "READ" || acc == "LIST" {
 						hasRead = true
 					}
 				}
