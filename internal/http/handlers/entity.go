@@ -78,6 +78,10 @@ func (h *EntityHandler) CreateEntity(c fiber.Ctx) error {
 		return apperror.New(apperror.CodeInvalidInput, "name is required")
 	}
 
+	if req.Type != "" && req.Type != "normal" && req.Type != "subscriber" {
+		return apperror.New(apperror.CodeInvalidInput, "type must be 'normal' or 'subscriber'")
+	}
+
 	resp, err := h.service.CreateEntity(reqCtx, &req)
 	if err != nil {
 		return err

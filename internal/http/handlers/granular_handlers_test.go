@@ -695,6 +695,21 @@ func TestGranularHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("POST Create Entity - Invalid Type", func(t *testing.T) {
+		payload := `{"name":"Invalid Type Entity", "type":"invalid-type"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/entities", strings.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", resp.StatusCode)
+		}
+	})
+
 	// 7. GET /api/v1/entities/:entityId - Positive Case
 	t.Run("GET Entity Detail", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/entities/ent-1", nil)
