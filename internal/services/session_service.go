@@ -81,7 +81,7 @@ func (s *SessionService) GetSessionContext(reqCtx prov.RequestContext) (*models.
 
 	// 3. Fetch all management roles to find assignments for this user
 	// Note: We scan through management roles. Under MDU phase 1, roles are created on demand.
-	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, err
 	}

@@ -62,15 +62,15 @@ func (s *EntityService) getLookupMaps(reqCtx prov.RequestContext) (map[string]pr
 		traverse(*tree, nil, "")
 	}
 
-	entities, err := s.provClient.ListEntities(reqCtx, 1000, 0)
+	entities, err := s.provClient.ListAllEntities(reqCtx)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
-	venues, err := s.provClient.ListVenues(reqCtx, 1000, 0)
+	venues, err := s.provClient.ListAllVenues(reqCtx)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
-	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -179,7 +179,7 @@ func (s *EntityService) DeleteEntity(reqCtx prov.RequestContext, uuidStr string)
 }
 
 func (s *EntityService) ListEntities(reqCtx prov.RequestContext, limit, offset int) (*models.EntityListResponse, error) {
-	provList, err := s.provClient.ListEntities(reqCtx, 1000, 0)
+	provList, err := s.provClient.ListAllEntities(reqCtx)
 	if err != nil {
 		return nil, err
 	}

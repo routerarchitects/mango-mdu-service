@@ -64,11 +64,11 @@ func (s *AssignmentService) getLookupMaps(reqCtx prov.RequestContext) (map[strin
 		traverse(*tree, nil, "")
 	}
 
-	entities, err := s.provClient.ListEntities(reqCtx, 1000, 0)
+	entities, err := s.provClient.ListAllEntities(reqCtx)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	venues, err := s.provClient.ListVenues(reqCtx, 1000, 0)
+	venues, err := s.provClient.ListAllVenues(reqCtx)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -87,7 +87,7 @@ func (s *AssignmentService) getLookupMaps(reqCtx prov.RequestContext) (map[strin
 }
 
 func (s *AssignmentService) ListAssignments(reqCtx prov.RequestContext, userID string) (*models.UserAssignmentsResponse, error) {
-	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (s *AssignmentService) ListAssignments(reqCtx prov.RequestContext, userID s
 }
 
 func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID string, req *models.CreateUserAssignmentRequest) (*models.UserAssignment, bool, error) {
-	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -195,7 +195,7 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 		isAlreadyAssigned = false
 		// 1. Resolve or create management policy specifically for this user
 		var policyID string
-		policies, err := s.provClient.ListPolicies(reqCtx, 1000, 0)
+		policies, err := s.provClient.ListAllPolicies(reqCtx)
 		if err != nil {
 			return nil, false, err
 		}
@@ -330,7 +330,7 @@ func (s *AssignmentService) DeleteAssignment(reqCtx prov.RequestContext, userID 
 }
 
 func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID string, scope string, entityID string, venueID string, roleTemplate string) (*models.UserAccessPolicy, error) {
-	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +399,7 @@ func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID s
 }
 
 func (s *AssignmentService) UpdateAccessPolicy(reqCtx prov.RequestContext, userID string, policy *models.UserAccessPolicy) (*models.UserAccessPolicy, error) {
-	roles, err := s.provClient.ListRoles(reqCtx, 1000, 0)
+	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, err
 	}
