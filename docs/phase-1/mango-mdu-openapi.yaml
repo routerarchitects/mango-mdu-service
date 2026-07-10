@@ -510,10 +510,9 @@ paths:
         Assigns the target user to the specified entity or venue scope with a given role.
         
         This endpoint implements an idempotent resolution flow when dealing with existing states:
-        1. **Create (201 Created)**: If no matching scoped role or assignment exists for the requested scope and role, MDU creates the assignment.
-        2. **Update/Resolve (201 Created)**: If a matching scoped role exists downstream for that scope and role, but the target user is not yet bound to it, MDU updates/resolves the role by adding the target user to its user list.
-        3. **No-Op/Idempotent Success (200 OK)**: If the target user is already assigned to the exact scope and role combination, the request resolves immediately with no state changes.
-        4. **Conflict (409 Conflict)**: Reserved only for true, unresolvable state conflicts (e.g. if the requested assignment cannot be safely resolved from downstream state or creates a logical contradiction).
+        1. **Create (201 Created)**: If no assignment exists for this user at the requested scope with the given role, MDU creates a dedicated role and policy for this user.
+        2. **No-Op/Idempotent Success (200 OK)**: If the target user is already assigned to the exact scope and role combination, the request resolves immediately with no state changes, returning the existing assignment.
+        3. **Conflict (409 Conflict)**: Reserved only for true, unresolvable state conflicts.
       operationId: assignUserToScope
       parameters:
         - $ref: '#/components/parameters/XRequestIdHeader'
@@ -549,7 +548,7 @@ paths:
                     managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
                     createdAt: "2026-06-30T12:00:00Z"
         '201':
-          description: Assignment newly created, or existing matching role updated to newly add the user.
+          description: Assignment newly created with a dedicated policy and role for the user.
           content:
             application/json:
               schema:
@@ -569,24 +568,6 @@ paths:
                         type: "entity"
                     managementRoleId: "623e4567-e89b-12d3-a456-426614174000"
                     managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-                    createdAt: "2026-06-30T12:00:00Z"
-                existingRoleUpdated:
-                  summary: Existing matching role updated to add user
-                  value:
-                    assignmentId: "723e4567-e89b-12d3-a456-426614174000"
-                    scopeType: "venue"
-                    scopeId: "323e4567-e89b-12d3-a456-426614174000"
-                    scopeName: "East Wing Venue"
-                    role: "installer"
-                    path:
-                      - id: "223e4567-e89b-12d3-a456-426614174000"
-                        name: "Regional Operations"
-                        type: "entity"
-                      - id: "323e4567-e89b-12d3-a456-426614174000"
-                        name: "East Wing Venue"
-                        type: "venue"
-                    managementRoleId: "823e4567-e89b-12d3-a456-426614174000"
-                    managementPolicyId: "723e4567-e89b-12d3-a456-426614174000"
                     createdAt: "2026-06-30T12:00:00Z"
         '400':
           description: Invalid request parameters or body (e.g. invalid scopeType or missing required fields).
