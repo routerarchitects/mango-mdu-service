@@ -196,20 +196,21 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 		// 1. Resolve or create management policy specifically for this user
 		var policyID string
 		policies, err := s.provClient.ListPolicies(reqCtx, 1000, 0)
-		if err == nil {
-			for _, p := range policies {
-				match := false
-				policyName := req.Role + "Policy-" + userID
-				if req.ScopeType == "entity" && p.Entity == req.ScopeID && p.Info.Name == policyName {
-					match = true
-				} else if req.ScopeType == "venue" && p.Venue == req.ScopeID && p.Info.Name == policyName {
-					match = true
-				}
+		if err != nil {
+			return nil, false, err
+		}
+		for _, p := range policies {
+			match := false
+			policyName := req.Role + "Policy-" + userID
+			if req.ScopeType == "entity" && p.Entity == req.ScopeID && p.Info.Name == policyName {
+				match = true
+			} else if req.ScopeType == "venue" && p.Venue == req.ScopeID && p.Info.Name == policyName {
+				match = true
+			}
 
-				if match {
-					policyID = p.Info.ID
-					break
-				}
+			if match {
+				policyID = p.Info.ID
+				break
 			}
 		}
 

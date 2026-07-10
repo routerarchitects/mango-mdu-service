@@ -186,6 +186,11 @@ func TestGranularHandlers(t *testing.T) {
 
 		// 3. Policies list/creation
 		if r.URL.Path == "/api/v1/managementPolicy" {
+			if r.Header.Get("X-Correlation-Id") == "list-policies-error" {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"error":"mock prov list policies error"}`))
+				return
+			}
 			list := []provclient.ProvManagementPolicy{
 				{
 					Info: provclient.ProvObjectInfo{
@@ -1382,6 +1387,23 @@ func TestGranularHandlers(t *testing.T) {
 
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("POST Create Assignment - Downstream ListPolicies error maps to 503", func(t *testing.T) {
+		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-456/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Correlation-Id", "list-policies-error")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
 		}
 	})
 
