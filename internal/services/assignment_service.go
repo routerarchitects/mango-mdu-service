@@ -560,7 +560,7 @@ func getDefaultPolicyEntries(role string, userID string, scopeType string, scope
 			{
 				Users:     []string{userID},
 				Resources: allResources,
-				Access:    []string{"READ", "LIST", "CREATE", "UPDATE", "MODIFY", "DELETE"},
+				Access:    []string{"READ", "LIST", "CREATE", "MODIFY", "DELETE"},
 				Policy:    policyJSON,
 			},
 		}
@@ -580,7 +580,7 @@ func getDefaultPolicyEntries(role string, userID string, scopeType string, scope
 			{
 				Users:     []string{userID},
 				Resources: []string{"configuration", "inventory"},
-				Access:    []string{"READ", "LIST", "UPDATE", "MODIFY"},
+				Access:    []string{"READ", "LIST", "MODIFY"},
 				Policy:    policyJSON,
 			},
 		}
@@ -596,7 +596,7 @@ func getDefaultPolicyEntries(role string, userID string, scopeType string, scope
 			{
 				Users:     []string{userID},
 				Resources: []string{"configuration", "inventory"},
-				Access:    []string{"READ", "LIST", "UPDATE", "MODIFY"},
+				Access:    []string{"READ", "LIST", "MODIFY"},
 				Policy:    policyJSON,
 			},
 		}

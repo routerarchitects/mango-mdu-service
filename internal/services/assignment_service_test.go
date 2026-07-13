@@ -23,7 +23,7 @@ func TestGetDefaultPolicyEntries(t *testing.T) {
 			scopeType:         "entity",
 			scopeID:           "ent-1",
 			expectedResources: []string{"entity", "venue", "operator", "inventory", "configuration", "managementPolicy", "managementRole"},
-			expectedAccess:    []string{"READ", "LIST", "CREATE", "UPDATE", "MODIFY", "DELETE"},
+			expectedAccess:    []string{"READ", "LIST", "CREATE", "MODIFY", "DELETE"},
 			expectedScopeType: "entity",
 		},
 		{
@@ -33,7 +33,7 @@ func TestGetDefaultPolicyEntries(t *testing.T) {
 			scopeType:         "venue",
 			scopeID:           "ven-1",
 			expectedResources: []string{"entity", "venue", "operator", "inventory", "configuration", "managementPolicy", "managementRole"},
-			expectedAccess:    []string{"READ", "LIST", "CREATE", "UPDATE", "MODIFY", "DELETE"},
+			expectedAccess:    []string{"READ", "LIST", "CREATE", "MODIFY", "DELETE"},
 			expectedScopeType: "venue",
 		},
 		{
@@ -53,7 +53,7 @@ func TestGetDefaultPolicyEntries(t *testing.T) {
 			scopeType:         "entity",
 			scopeID:           "ent-3",
 			expectedResources: []string{"configuration", "inventory"},
-			expectedAccess:    []string{"READ", "LIST", "UPDATE", "MODIFY"},
+			expectedAccess:    []string{"READ", "LIST", "MODIFY"},
 			expectedScopeType: "entity",
 		},
 		{
@@ -158,7 +158,7 @@ func TestGetDefaultPolicyEntriesNoc(t *testing.T) {
 	// Second entry (configuration/inventory write)
 	e2 := entries[1]
 	expectedE2Resources := []string{"configuration", "inventory"}
-	expectedE2Access := []string{"READ", "LIST", "UPDATE", "MODIFY"}
+	expectedE2Access := []string{"READ", "LIST", "MODIFY"}
 	if len(e2.Resources) != len(expectedE2Resources) {
 		t.Errorf("entry 2 expected resources %+v, got %+v", expectedE2Resources, e2.Resources)
 	}
