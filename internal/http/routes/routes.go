@@ -29,6 +29,9 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 	group := app.Group("", deps.AuthHandler)
 
 	// Register system diagnostics routes
+	// NOTE: The subsysteroutes.RegisterRoutes helper internally hardcodes "/api/v1/system" paths.
+	// We pass the root group ("") here to ensure the routes are mounted exactly at "/api/v1/system"
+	// (passing the apiV1 group would result in "/api/v1/api/v1/system").
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
 
 	// Base API V1 route group shared by all public endpoints
@@ -60,6 +63,8 @@ func RegisterPrivate(app *fiber.App, deps PrivateDeps) {
 	group := app.Group("", deps.AuthHandler)
 
 	// Register system diagnostics routes
+	// NOTE: The subsysteroutes.RegisterRoutes helper internally hardcodes "/api/v1/system" paths.
+	// We pass the root group ("") here to ensure the routes are mounted exactly at "/api/v1/system".
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
 }
 
