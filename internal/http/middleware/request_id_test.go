@@ -12,42 +12,46 @@ import (
 
 func TestCorrelationAndRequestID(t *testing.T) {
 	tests := []struct {
-		name                 string
-		inputRequestID       string
-		inputCorrelationID   string
-		expectGeneratedReqID bool
-		expectReqID          string
-		expectCorrID         string
+		name                  string
+		inputRequestID        string
+		inputCorrelationID    string
+		expectGeneratedReqID  bool
+		expectReqID           string
+		expectCorrID          string
+		expectFallbackToReqID bool
 	}{
 		{
-			name:                 "Generate Request ID if empty",
-			inputRequestID:       "",
-			inputCorrelationID:   "",
-			expectGeneratedReqID: true,
-			expectCorrID:         "",
+			name:                  "Generate Request ID if empty",
+			inputRequestID:        "",
+			inputCorrelationID:    "",
+			expectGeneratedReqID:  true,
+			expectFallbackToReqID: true,
 		},
 		{
-			name:                 "Keep valid Request ID and Correlation ID",
-			inputRequestID:       "req-abc-123",
-			inputCorrelationID:   "corr:xyz_456",
-			expectGeneratedReqID: false,
-			expectReqID:          "req-abc-123",
-			expectCorrID:         "corr:xyz_456",
+			name:                  "Keep valid Request ID and Correlation ID",
+			inputRequestID:        "req-abc-123",
+			inputCorrelationID:    "corr:xyz_456",
+			expectGeneratedReqID:  false,
+			expectReqID:           "req-abc-123",
+			expectCorrID:          "corr:xyz_456",
+			expectFallbackToReqID: false,
 		},
 		{
-			name:                 "Discard malformed Correlation ID",
-			inputRequestID:       "req-abc-123",
-			inputCorrelationID:   "bad-corr-id-with-spaces and <xml>",
-			expectGeneratedReqID: false,
-			expectReqID:          "req-abc-123",
-			expectCorrID:         "",
+			name:                  "Discard malformed Correlation ID",
+			inputRequestID:        "req-abc-123",
+			inputCorrelationID:    "bad-corr-id-with-spaces and <xml>",
+			expectGeneratedReqID:  false,
+			expectReqID:           "req-abc-123",
+			expectCorrID:          "",
+			expectFallbackToReqID: true,
 		},
 		{
-			name:                 "Regenerate excessively long Request ID",
-			inputRequestID:       strings.Repeat("a", 101),
-			inputCorrelationID:   "valid-corr",
-			expectGeneratedReqID: true,
-			expectCorrID:         "valid-corr",
+			name:                  "Regenerate excessively long Request ID",
+			inputRequestID:        strings.Repeat("a", 101),
+			inputCorrelationID:    "valid-corr",
+			expectGeneratedReqID:  true,
+			expectCorrID:          "valid-corr",
+			expectFallbackToReqID: false,
 		},
 	}
 
@@ -89,8 +93,13 @@ func TestCorrelationAndRequestID(t *testing.T) {
 				}
 			}
 
-			if capturedCorrID != tc.expectCorrID {
-				t.Errorf("expected correlation ID %q, got %q", tc.expectCorrID, capturedCorrID)
+			expectedCorr := tc.expectCorrID
+			if tc.expectFallbackToReqID {
+				expectedCorr = capturedReqID
+			}
+
+			if capturedCorrID != expectedCorr {
+				t.Errorf("expected correlation ID %q, got %q", expectedCorr, capturedCorrID)
 			}
 
 			// Check response headers are set

@@ -48,30 +48,26 @@ func CorrelationAndRequestID() fiber.Handler {
 			corrID = strings.TrimSpace(c.Get("X-Correlation-ID"))
 		}
 
-		if corrID != "" && !isValidID(corrID) {
-			// Discard invalid correlation ID
-			corrID = ""
+		if corrID == "" {
+			// Fall back to request ID if correlation ID is not supplied
+			corrID = reqID
+		} else if !isValidID(corrID) {
+			// Discard invalid correlation ID and fall back to request ID
+			corrID = reqID
 		}
 
 		// Standardize request headers for downstream context
 		c.Request().Header.Set("X-Request-ID", reqID)
 		c.Request().Header.Set("X-Request-Id", reqID)
 
-		if corrID != "" {
-			c.Request().Header.Set("X-Correlation-ID", corrID)
-			c.Request().Header.Set("X-Correlation-Id", corrID)
-		} else {
-			c.Request().Header.Del("X-Correlation-ID")
-			c.Request().Header.Del("X-Correlation-Id")
-		}
+		c.Request().Header.Set("X-Correlation-ID", corrID)
+		c.Request().Header.Set("X-Correlation-Id", corrID)
 
 		// Standardize response headers
 		c.Response().Header.Set("X-Request-ID", reqID)
 		c.Response().Header.Set("X-Request-Id", reqID)
-		if corrID != "" {
-			c.Response().Header.Set("X-Correlation-ID", corrID)
-			c.Response().Header.Set("X-Correlation-Id", corrID)
-		}
+		c.Response().Header.Set("X-Correlation-ID", corrID)
+		c.Response().Header.Set("X-Correlation-Id", corrID)
 
 		return c.Next()
 	}
