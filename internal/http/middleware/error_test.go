@@ -21,12 +21,12 @@ func TestErrorHandler_Sanitization(t *testing.T) {
 	slog.SetDefault(testLogger)
 
 	tests := []struct {
-		name             string
-		handlerErr       error
-		expectedStatus   int
-		expectedDetails  string
-		expectedInLog    []string
-		requestHeaders   map[string]string
+		name            string
+		handlerErr      error
+		expectedStatus  int
+		expectedDetails string
+		expectedInLog   []string
+		requestHeaders  map[string]string
 	}{
 		{
 			name: "Sanitize OWSEC Downstream Unavailable",
