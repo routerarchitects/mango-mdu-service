@@ -2,10 +2,13 @@ package middleware
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/routerarchitects/ra-common-mods/apperror"
+	"github.com/routerarchitects/ra-common-mods/logger"
 )
 
 type ApiErrorResponse struct {
@@ -36,6 +39,54 @@ func ErrorHandler(c fiber.Ctx, err error) error {
 		statusCode = mapCodeToHttpStatus(code)
 		errDesc = mapCodeToDesc(code)
 		errDetails = apperror.MessageOf(err)
+	}
+
+	// Extract request and correlation IDs
+	reqID := c.Get("X-Request-Id")
+	corrID := c.Get("X-Correlation-Id")
+
+	// Log the original raw error internally with request and correlation IDs
+	logFields := []any{
+		slog.String("error", err.Error()),
+		slog.Int("status_code", statusCode),
+	}
+	if reqID != "" {
+		logFields = append(logFields, slog.String("request_id", reqID))
+	}
+	if corrID != "" {
+		logFields = append(logFields, slog.String("correlation_id", corrID))
+	}
+
+	if statusCode >= 500 {
+		logger.Subsystem("server").Error("Server error", logFields...)
+	} else {
+		logger.Subsystem("server").Warn("Client error", logFields...)
+	}
+
+	// Sanitize error details for public response to avoid leaking internal/downstream details
+	if statusCode >= 500 {
+		code := apperror.CodeOf(err)
+		errStr := err.Error()
+
+		if code == apperror.Code("DOWNSTREAM_UNAVAILABLE") {
+			if strings.Contains(errStr, "owsec") || strings.Contains(errStr, "token validation") || strings.Contains(errStr, "API key validation") {
+				errDetails = "Authentication service is temporarily unavailable"
+			} else if strings.Contains(errStr, "owprov") {
+				errDetails = "Provisioning service is temporarily unavailable"
+			} else {
+				errDetails = "Downstream service is temporarily unavailable"
+			}
+		} else if code == apperror.Code("DOWNSTREAM_TIMEOUT") || code == apperror.Code("TIMEOUT") {
+			if strings.Contains(errStr, "owsec") {
+				errDetails = "Authentication service timed out"
+			} else if strings.Contains(errStr, "owprov") {
+				errDetails = "Provisioning service timed out"
+			} else {
+				errDetails = "Downstream service timed out"
+			}
+		} else {
+			errDetails = "An internal server error occurred"
+		}
 	}
 
 	return c.Status(statusCode).JSON(ApiErrorResponse{

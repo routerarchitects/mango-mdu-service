@@ -39,3 +39,6 @@ certs/
 tmp_test/
 
 init-service.sh
+.gocache/
+owprov.yaml
+ucentralsec-openapi.deref.yaml

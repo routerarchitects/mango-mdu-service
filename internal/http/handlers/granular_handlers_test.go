@@ -121,7 +121,7 @@ func TestGranularHandlers(t *testing.T) {
 					},
 					ManagementPolicy: "pol-1",
 					Entity:           "ent-1",
-					Users:            []string{"user-123"},
+					Users:            []string{"00000000-0000-0000-0000-000000000123"},
 				},
 				{
 					Info: provclient.ProvObjectInfo{
@@ -164,7 +164,7 @@ func TestGranularHandlers(t *testing.T) {
 					},
 					ManagementPolicy: "pol-1",
 					Entity:           "ent-1",
-					Users:            []string{"user-123"},
+					Users:            []string{"00000000-0000-0000-0000-000000000123"},
 				}
 				json.NewEncoder(w).Encode(rol)
 				return
@@ -177,7 +177,7 @@ func TestGranularHandlers(t *testing.T) {
 				},
 				ManagementPolicy: "pol-1",
 				Entity:           "ent-1",
-				Users:            []string{"user-123"},
+				Users:            []string{"00000000-0000-0000-0000-000000000123"},
 			}
 			json.NewEncoder(w).Encode(rol)
 			return
@@ -196,7 +196,7 @@ func TestGranularHandlers(t *testing.T) {
 				},
 				ManagementPolicy: "pol-1",
 				Entity:           "ent-1",
-				Users:            []string{"user-123"},
+				Users:            []string{"00000000-0000-0000-0000-000000000123"},
 			}
 			json.NewEncoder(w).Encode(rol)
 			return
@@ -213,12 +213,12 @@ func TestGranularHandlers(t *testing.T) {
 				{
 					Info: provclient.ProvObjectInfo{
 						ID:   "pol-1",
-						Name: "adminPolicy-user-123",
+						Name: "adminPolicy-00000000-0000-0000-0000-000000000123",
 					},
 					Entity: "ent-1",
 					Entries: []provclient.ProvManagementPolicyEntry{
 						{
-							Users:     []string{"user-123"},
+							Users:     []string{"00000000-0000-0000-0000-000000000123"},
 							Resources: []string{"configuration", "inventory"},
 							Access:    []string{"READ", "MODIFY"},
 							Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
@@ -281,7 +281,7 @@ func TestGranularHandlers(t *testing.T) {
 			} else {
 				entries = []provclient.ProvManagementPolicyEntry{
 					{
-						Users:     []string{"user-123"},
+						Users:     []string{"00000000-0000-0000-0000-000000000123"},
 						Resources: []string{"configuration", "inventory"},
 						Access:    []string{"READ", "MODIFY"},
 						Policy:    `{"type":"entity","entityId":"ent-1","includeVenues":true,"includeChildEntities":true}`,
@@ -416,7 +416,7 @@ func TestGranularHandlers(t *testing.T) {
 				w.Write([]byte(`invalid-json-body`))
 				return
 			}
-			userID := "user-123"
+			userID := "00000000-0000-0000-0000-000000000123"
 			if token == "multi-policy-user" {
 				userID = "multi-policy-user"
 			}
@@ -428,6 +428,22 @@ func TestGranularHandlers(t *testing.T) {
 				UserRole: "admin",
 			}
 			json.NewEncoder(w).Encode(secclient.TokenValidationResponse{UserInfo: userInfo})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/user/") {
+			userID := strings.TrimPrefix(r.URL.Path, "/api/v1/user/")
+			if userID == "00000000-0000-0000-0000-000000000004" || userID == "00000000-0000-0000-0000-ffffffffffff" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			userInfo := secclient.UserInfo{
+				ID:       userID,
+				Email:    userID + "@example.com",
+				Name:     "Test User",
+				Owner:    "owner-123",
+				UserRole: "admin",
+			}
+			json.NewEncoder(w).Encode(userInfo)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -450,7 +466,7 @@ func TestGranularHandlers(t *testing.T) {
 	venueService := services.NewVenueService(provClient)
 	venueHandler := handlers.NewVenueHandler(venueService)
 
-	assignmentService := services.NewAssignmentService(provClient)
+	assignmentService := services.NewAssignmentService(provClient, secClient)
 	assignmentHandler := handlers.NewAssignmentHandler(assignmentService)
 
 	entityService := services.NewEntityService(provClient)
@@ -1008,7 +1024,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 23. GET /api/v1/users/:userId/assignments - Positive Case
 	t.Run("GET User Scoped Assignments", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/assignments", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments", nil)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -1030,7 +1046,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 24. POST /api/v1/users/:userId/assignments - Positive Case
 	t.Run("POST Create User Scoped Assignment", func(t *testing.T) {
 		payload := `{"scopeType":"entity", "scopeId":"ent-1", "role":"admin"}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments", strings.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1053,7 +1069,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 25. POST /api/v1/users/:userId/assignments - Negative Case (Invalid payload / missing fields)
 	t.Run("POST Create Assignment - Missing Fields", func(t *testing.T) {
 		payload := `{"scopeType":"entity"}` // Missing role and scopeId
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments", strings.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1068,7 +1084,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 26. DELETE /api/v1/users/:userId/assignments/:assignmentId - Positive Case
 	t.Run("DELETE User Scoped Assignment", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/users/user-123/assignments/rol-1", nil)
+		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments/rol-1", nil)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -1082,7 +1098,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 27. DELETE /api/v1/users/:userId/assignments/:assignmentId - Negative Case (404 Not Found)
 	t.Run("DELETE Assignment - Non-Existent", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/users/user-123/assignments/non-existent", nil)
+		req, _ := http.NewRequest(http.MethodDelete, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments/non-existent", nil)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -1096,7 +1112,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 28. GET /api/v1/users/:userId/access-policy - Positive Case
 	t.Run("GET User Scoped Access Policy", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=entity&entityId=ent-1", nil)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -1211,7 +1227,7 @@ func TestGranularHandlers(t *testing.T) {
 				}
 			]
 		}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1381,7 +1397,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 37. GET /api/v1/users/:userId/access-policy - Validation error when entityId is missing for venue scope
 	t.Run("GET Access Policy - Validation error when entityId is missing for venue scope", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=venue&venueId=ven-1", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=venue&venueId=ven-1", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1396,7 +1412,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 38. GET /api/v1/users/:userId/access-policy - Downstream connection failure mapping to 503
 	t.Run("GET Access Policy - Downstream PROV error maps to 503", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=entity&entityId=ent-1", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("X-Request-Id", "downstream-error")
 		resp, err := app.Test(req)
@@ -1459,7 +1475,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 40. POST /api/v1/users/:userId/assignments - Idempotent 200 OK when user is already assigned
 	t.Run("POST Create Assignment - Idempotent 200 OK when user is already assigned", func(t *testing.T) {
 		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1476,7 +1492,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 41. POST /api/v1/users/:userId/assignments - New assignment created and 201 Created when user is not assigned
 	t.Run("POST Create Assignment - New assignment created and 201 Created when user is not assigned", func(t *testing.T) {
 		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-456/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000456/assignments", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1493,7 +1509,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 42. POST /api/v1/users/:userId/assignments - Invalid scopeType returns 400 Bad Request
 	t.Run("POST Create Assignment - Invalid scopeType returns 400 Bad Request", func(t *testing.T) {
 		payload := `{"scopeType":"invalid-scope","scopeId":"ent-1","role":"admin"}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1509,7 +1525,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	t.Run("POST Create Assignment - Invalid role returns 400 Bad Request", func(t *testing.T) {
 		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"invalid-role"}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-123/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000123/assignments", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1525,7 +1541,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	t.Run("POST Create Assignment - Downstream ListPolicies error maps to 503", func(t *testing.T) {
 		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/user-456/assignments", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000456/assignments", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Correlation-Id", "list-policies-error")
@@ -1540,9 +1556,41 @@ func TestGranularHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("POST Create Assignment - Invalid user ID format returns 400 Bad Request", func(t *testing.T) {
+		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/invalid-uuid-format/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected status 400 Bad Request, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("POST Create Assignment - Unknown user ID returns 404 Not Found", func(t *testing.T) {
+		payload := `{"scopeType":"entity","scopeId":"ent-1","role":"admin"}`
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/00000000-0000-0000-0000-000000000004/assignments", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404 Not Found, got %d", resp.StatusCode)
+		}
+	})
+
 	// 43. GET /api/v1/users/:userId/access-policy - Invalid combination (scope=entity with venueId present) returns 400
 	t.Run("GET Access Policy - Invalid combination (scope=entity with venueId) returns 400", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1&venueId=ven-1", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=entity&entityId=ent-1&venueId=ven-1", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1558,7 +1606,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 44. PUT /api/v1/users/:userId/access-policy - Invalid combination (scope=entity with venueId present) returns 400
 	t.Run("PUT Access Policy - Invalid combination (scope=entity with venueId) returns 400", func(t *testing.T) {
 		payload := `{"scope":"entity","entityId":"ent-1","venueId":"ven-1","role":"admin","entries":[]}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1574,7 +1622,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 45. GET /api/v1/users/:userId/access-policy - Venue scope missing venueId returns 400
 	t.Run("GET Access Policy - Venue scope missing venueId returns 400", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=venue&entityId=ent-1", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=venue&entityId=ent-1", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1590,7 +1638,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 46. PUT /api/v1/users/:userId/access-policy - Venue scope missing venueId returns 400
 	t.Run("PUT Access Policy - Venue scope missing venueId returns 400", func(t *testing.T) {
 		payload := `{"scope":"venue","entityId":"ent-1","role":"admin","entries":[]}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1605,7 +1653,7 @@ func TestGranularHandlers(t *testing.T) {
 	})
 
 	t.Run("GET Access Policy - Venue and Entity mismatch returns 400 Bad Request", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=venue&entityId=ent-2&venueId=ven-1", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=venue&entityId=ent-2&venueId=ven-1", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1620,7 +1668,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	t.Run("PUT Access Policy - Venue and Entity mismatch returns 400 Bad Request", func(t *testing.T) {
 		payload := `{"scope":"venue","entityId":"ent-2","venueId":"ven-1","roleTemplate":"admin","resourcePermissions":[{"resource":"configuration","policies":["READ"]}]}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1707,7 +1755,7 @@ func TestGranularHandlers(t *testing.T) {
 
 	// 51. GET /api/v1/users/:userId/access-policy - invalid roleTemplate query param
 	t.Run("GET Access Policy - Invalid roleTemplate query parameter returns 400", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/user-123/access-policy?scope=entity&entityId=ent-1&roleTemplate=invalid-role", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy?scope=entity&entityId=ent-1&roleTemplate=invalid-role", nil)
 		req.Header.Set("Authorization", "Bearer valid-token")
 		resp, err := app.Test(req)
 		if err != nil {
@@ -1722,7 +1770,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 52. PUT /api/v1/users/:userId/access-policy - missing roleTemplate
 	t.Run("PUT Access Policy - Missing roleTemplate in body returns 400", func(t *testing.T) {
 		payload := `{"scope":"entity","entityId":"ent-1","resourcePermissions":[]}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1738,7 +1786,7 @@ func TestGranularHandlers(t *testing.T) {
 	// 53. PUT /api/v1/users/:userId/access-policy - invalid roleTemplate
 	t.Run("PUT Access Policy - Invalid roleTemplate in body returns 400", func(t *testing.T) {
 		payload := `{"scope":"entity","entityId":"ent-1","roleTemplate":"invalid-role","resourcePermissions":[]}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1764,7 +1812,7 @@ func TestGranularHandlers(t *testing.T) {
 				}
 			]
 		}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
@@ -1790,7 +1838,7 @@ func TestGranularHandlers(t *testing.T) {
 				}
 			]
 		}`
-		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/user-123/access-policy", strings.NewReader(payload))
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/users/00000000-0000-0000-0000-000000000123/access-policy", strings.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer valid-token")
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)

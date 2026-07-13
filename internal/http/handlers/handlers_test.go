@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	provclient "github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
+	secclient "github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
 	"github.com/routerarchitects/mango-mdu-service/internal/models"
@@ -96,7 +97,7 @@ func TestHandlers(t *testing.T) {
 					},
 					ManagementPolicy: "pol-1",
 					Entity:           "ent-1",
-					Users:            []string{"user-123"},
+					Users:            []string{"00000000-0000-0000-0000-000000000123"},
 				},
 			}
 			json.NewEncoder(w).Encode(provclient.ProvManagementRoleList{Roles: list})
@@ -127,6 +128,13 @@ func TestHandlers(t *testing.T) {
 	}
 	provClient.BaseURL = mockServer.URL
 
+	secClient, err := secclient.NewClient(nil, "", "mdu-test")
+	if err != nil {
+		t.Fatalf("failed to create sec client: %v", err)
+	}
+	secClient.BaseURL = mockServer.URL
+	secClient.AuthEnabled = false
+
 	// Initialize Services & Handlers
 	hierarchyService := services.NewHierarchyService(provClient)
 	hierarchyHandler := handlers.NewHierarchyHandler(hierarchyService)
@@ -137,7 +145,7 @@ func TestHandlers(t *testing.T) {
 	venueService := services.NewVenueService(provClient)
 	venueHandler := handlers.NewVenueHandler(venueService)
 
-	assignmentService := services.NewAssignmentService(provClient)
+	assignmentService := services.NewAssignmentService(provClient, secClient)
 	assignmentHandler := handlers.NewAssignmentHandler(assignmentService)
 
 	// Fiber app

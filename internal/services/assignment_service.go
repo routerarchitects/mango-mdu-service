@@ -6,17 +6,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 	"github.com/routerarchitects/mango-mdu-service/internal/models"
 	"github.com/routerarchitects/ra-common-mods/apperror"
 )
 
 type AssignmentService struct {
 	provClient *prov.Client
+	secClient  *sec.Client
 }
 
-func NewAssignmentService(provClient *prov.Client) *AssignmentService {
+func NewAssignmentService(provClient *prov.Client, secClient *sec.Client) *AssignmentService {
 	return &AssignmentService{
 		provClient: provClient,
+		secClient:  secClient,
 	}
 }
 
@@ -158,6 +161,11 @@ func (s *AssignmentService) ListAssignments(reqCtx prov.RequestContext, userID s
 }
 
 func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID string, req *models.CreateUserAssignmentRequest) (*models.UserAssignment, bool, error) {
+	// Validate the target user through OWSEC first
+	if _, err := s.secClient.GetUser(reqCtx.Context, userID, reqCtx.BearerToken); err != nil {
+		return nil, false, err
+	}
+
 	roles, err := s.provClient.ListAllRoles(reqCtx)
 	if err != nil {
 		return nil, false, err

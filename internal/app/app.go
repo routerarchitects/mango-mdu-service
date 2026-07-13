@@ -119,7 +119,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		venueService := services.NewVenueService(provClient)
 		venueHandler = handlers.NewVenueHandler(venueService)
 
-		assignmentService := services.NewAssignmentService(provClient)
+		assignmentService := services.NewAssignmentService(provClient, secClient)
 		assignmentHandler = handlers.NewAssignmentHandler(assignmentService)
 	}
 

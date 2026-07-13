@@ -70,6 +70,10 @@ func NewModule(deps Dependencies) (*Module, error) {
 	// Register CORS policy for external UI calls
 	middleware.RegisterPublicCORS(publicApp)
 
+	// Register request/correlation ID normalization middleware
+	publicApp.Use(middleware.CorrelationAndRequestID())
+	privateApp.Use(middleware.CorrelationAndRequestID())
+
 	// Register trace loggers
 	middleware.RegisterRequestLog(publicApp, deps.ServerLogger)
 	middleware.RegisterRequestLog(privateApp, deps.ServerLogger)

@@ -95,7 +95,7 @@ func TestModuleAuthenticationAndHeaderPropagation(t *testing.T) {
 	venueService := services.NewVenueService(provClient)
 	venueHandler := handlers.NewVenueHandler(venueService)
 
-	assignmentService := services.NewAssignmentService(provClient)
+	assignmentService := services.NewAssignmentService(provClient, secClient)
 	assignmentHandler := handlers.NewAssignmentHandler(assignmentService)
 
 	deps := Dependencies{

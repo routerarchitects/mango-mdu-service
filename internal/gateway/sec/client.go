@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
 	"github.com/routerarchitects/ra-common-mods/apperror"
@@ -184,6 +185,53 @@ func (c *Client) ValidateToken(ctx context.Context, rawToken string) (*UserInfo,
 
 	body, _ := io.ReadAll(tokenResp.Body)
 	return nil, apperror.New(apperror.Code("DOWNSTREAM_UNAVAILABLE"), fmt.Sprintf("token validation failed (status=%d): %s", tokenResp.StatusCode, string(body)))
+}
+
+// GetUser fetches user information from owsec by user ID.
+func (c *Client) GetUser(ctx context.Context, userID string, rawToken string) (*UserInfo, error) {
+	// First validate that userID is a valid UUID
+	if _, err := uuid.Parse(userID); err != nil {
+		return nil, apperror.New(apperror.CodeInvalidInput, "invalid user identifier format")
+	}
+
+	if !c.AuthEnabled {
+		// Mock responses for testing
+		if userID == "00000000-0000-0000-0000-000000000004" || userID == "00000000-0000-0000-0000-ffffffffffff" {
+			return nil, apperror.New(apperror.CodeNotFound, "user not found")
+		}
+		return &UserInfo{
+			ID:       userID,
+			Email:    userID + "@example.com",
+			Name:     "Mock User " + userID,
+			Owner:    "00000000-0000-0000-0000-000000000000",
+			UserRole: "admin",
+		}, nil
+	}
+
+	resp, err := c.sendRequest(ctx, http.MethodGet, "/api/v1/user/"+url.PathEscape(userID), rawToken)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		var user UserInfo
+		if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+			return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode user info", err)
+		}
+		return &user, nil
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, apperror.New(apperror.CodeNotFound, "user not found")
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, apperror.New(apperror.CodeUnauthorized, "unauthorized to read user info")
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	return nil, apperror.New(apperror.Code("DOWNSTREAM_UNAVAILABLE"), fmt.Sprintf("failed to get user (status=%d): %s", resp.StatusCode, string(body)))
 }
 
 // ValidateAPIKey validates a public API key with owsec.

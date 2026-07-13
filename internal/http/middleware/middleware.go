@@ -1,7 +1,12 @@
 package middleware
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -16,6 +21,72 @@ func RegisterPublicCORS(app *fiber.App) {
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-API-KEY", "X-INTERNAL-NAME"},
 	}))
+}
+
+// CorrelationAndRequestID normalizes, validates, and generates request/correlation IDs.
+func CorrelationAndRequestID() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		// Read incoming request ID
+		reqID := strings.TrimSpace(c.Get("X-Request-Id"))
+		if reqID == "" {
+			reqID = strings.TrimSpace(c.Get("X-Request-ID"))
+		}
+
+		if !isValidID(reqID) {
+			// Generate a new one if missing or invalid using the common-mods algorithm
+			var b [12]byte
+			if _, err := rand.Read(b[:]); err != nil {
+				reqID = fmt.Sprintf("%d", time.Now().UnixNano())
+			} else {
+				reqID = hex.EncodeToString(b[:])
+			}
+		}
+
+		// Read incoming correlation ID
+		corrID := strings.TrimSpace(c.Get("X-Correlation-Id"))
+		if corrID == "" {
+			corrID = strings.TrimSpace(c.Get("X-Correlation-ID"))
+		}
+
+		if corrID != "" && !isValidID(corrID) {
+			// Discard invalid correlation ID
+			corrID = ""
+		}
+
+		// Standardize request headers for downstream context
+		c.Request().Header.Set("X-Request-ID", reqID)
+		c.Request().Header.Set("X-Request-Id", reqID)
+
+		if corrID != "" {
+			c.Request().Header.Set("X-Correlation-ID", corrID)
+			c.Request().Header.Set("X-Correlation-Id", corrID)
+		} else {
+			c.Request().Header.Del("X-Correlation-ID")
+			c.Request().Header.Del("X-Correlation-Id")
+		}
+
+		// Standardize response headers
+		c.Response().Header.Set("X-Request-ID", reqID)
+		c.Response().Header.Set("X-Request-Id", reqID)
+		if corrID != "" {
+			c.Response().Header.Set("X-Correlation-ID", corrID)
+			c.Response().Header.Set("X-Correlation-Id", corrID)
+		}
+
+		return c.Next()
+	}
+}
+
+func isValidID(id string) bool {
+	if len(id) == 0 || len(id) > 100 {
+		return false
+	}
+	for _, ch := range id {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == ':' || ch == '.') {
+			return false
+		}
+	}
+	return true
 }
 
 // RegisterRequestLog registers the correlation and structured request logger middleware.
