@@ -150,7 +150,17 @@ func (c *Client) ValidateToken(ctx context.Context, rawToken string) (*UserInfo,
 		return nil, apperror.New(apperror.CodeUnauthorized, "unauthorized")
 	}
 
-	// Validate token
+	// Validate token via OWSEC's /validateToken endpoint.
+	//
+	// OWSEC's handler reads the token exclusively from the ?token= query parameter
+	// (Poco::URI::getQueryParameters in the C++ source), not from the Authorization
+	// header. This is a constraint of the upstream OWSEC contract.
+	//
+	// Security context: this call targets OWSEC's PRIVATE endpoint
+	// (instance.PrivateEndPoint), which is an internal service-to-service link
+	// protected by X-API-KEY + X-INTERNAL-NAME authentication and TLS encryption.
+	// The query string is never exposed to public reverse proxies, external access
+	// logs, or untrusted network observers.
 	tokenResp, err := c.sendRequest(ctx, http.MethodGet, "/api/v1/validateToken?token="+url.QueryEscape(token), rawToken)
 	if err != nil {
 		return nil, err

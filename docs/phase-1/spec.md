@@ -321,6 +321,29 @@ For Phase 1, the OWSEC integration must define and implement:
 - error translation for auth failures and dependency failures
 - traceability/logging for validation calls
 
+> [!NOTE]
+> **Token Transport in OWSEC Validation Calls**
+>
+> OWSEC's `/validateToken` endpoint requires the bearer token as a `?token=` query parameter.
+> This is a constraint of the upstream OWSEC C++ handler implementation, which reads tokens
+> exclusively from `Poco::URI::getQueryParameters()` and does not inspect the `Authorization`
+> header for this endpoint.
+>
+> **Why this is acceptable:**
+> 1. MDU calls OWSEC's **private endpoint** (`instance.PrivateEndPoint`), which is an internal
+>    service-to-service link not exposed to the public internet or external reverse proxies.
+> 2. The private endpoint is additionally protected by `X-API-KEY` and `X-INTERNAL-NAME`
+>    headers, which OWSEC validates before processing internal requests.
+> 3. All internal communication uses **TLS** (configured via `TLS_ROOTCA`), so the query string
+>    is encrypted in transit and not visible to network intermediaries.
+> 4. MDU does not log the full downstream request URL at any log level; request/correlation IDs
+>    are used for traceability instead of raw URLs.
+>
+> The `Authorization` header is also set on the outbound request for consistency with the
+> standard service-to-service communication pattern, but OWSEC's `/validateToken` handler
+> does not read it. If a future OWSEC version adds header-based token validation, MDU is
+> already sending both transports and will work without changes.
+
 ### PROV
 
 For Phase 1, the PROV integration must define and implement:
