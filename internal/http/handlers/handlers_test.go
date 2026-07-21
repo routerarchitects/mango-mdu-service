@@ -79,7 +79,7 @@ func TestHandlers(t *testing.T) {
 				{
 					Info: provclient.ProvObjectInfo{
 						ID:   "pol-1",
-						Name: "adminPolicy",
+						Name: "admin",
 					},
 					Entity: "ent-1",
 				},

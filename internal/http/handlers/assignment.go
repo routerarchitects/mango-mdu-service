@@ -22,6 +22,7 @@ var validResources = map[string]bool{
 	"venue":            true,
 	"operator":         true,
 	"inventory":        true,
+	"device":           true,
 	"configuration":    true,
 	"managementPolicy": true,
 	"managementRole":   true,
@@ -54,7 +55,6 @@ func (h *AssignmentHandler) Register(router fiber.Router) {
 	group.Delete("/assignments/:assignmentId", h.DeleteAssignment)
 
 	group.Get("/access-policy", h.GetAccessPolicy)
-	group.Put("/access-policy", h.UpdateAccessPolicy)
 }
 
 func (h *AssignmentHandler) ListAssignments(c fiber.Ctx) error {
@@ -145,66 +145,6 @@ func (h *AssignmentHandler) GetAccessPolicy(c fiber.Ctx) error {
 	}
 
 	resp, err := h.service.GetAccessPolicy(reqCtx, userID, scope, entityID, venueID, roleTemplate)
-	if err != nil {
-		return err
-	}
-	return c.JSON(resp)
-}
-
-func (h *AssignmentHandler) UpdateAccessPolicy(c fiber.Ctx) error {
-	reqCtx := buildRequestContext(c)
-	userID := c.Params("userId")
-
-	var req models.UserAccessPolicy
-	if err := c.Bind().JSON(&req); err != nil {
-		return apperror.New(apperror.CodeInvalidInput, "invalid payload request")
-	}
-
-	if req.Scope != "entity" && req.Scope != "venue" {
-		return apperror.New(apperror.CodeInvalidInput, "scope must be 'entity' or 'venue'")
-	}
-	if req.EntityID == "" {
-		return apperror.New(apperror.CodeInvalidInput, "entityId is required")
-	}
-	if req.Scope == "entity" {
-		if req.VenueID != "" {
-			return apperror.New(apperror.CodeInvalidInput, "venueId must not be provided for entity scope")
-		}
-	} else if req.Scope == "venue" {
-		if req.VenueID == "" {
-			return apperror.New(apperror.CodeInvalidInput, "venueId is required for venue scope")
-		}
-	}
-
-	if req.RoleTemplate == "" {
-		return apperror.New(apperror.CodeInvalidInput, "roleTemplate is required")
-	}
-	if !validRoleKeys[req.RoleTemplate] {
-		return apperror.New(apperror.CodeInvalidInput, "invalid roleTemplate value")
-	}
-
-	if len(req.ResourcePermissions) == 0 {
-		return apperror.New(apperror.CodeInvalidInput, "resourcePermissions is required and cannot be empty")
-	}
-
-	for _, rp := range req.ResourcePermissions {
-		if rp.Resource == "" {
-			return apperror.New(apperror.CodeInvalidInput, "resource is required")
-		}
-		if !validResources[rp.Resource] {
-			return apperror.New(apperror.CodeInvalidInput, "invalid resource value: "+rp.Resource)
-		}
-		if len(rp.Policies) == 0 {
-			return apperror.New(apperror.CodeInvalidInput, "policies is required and cannot be empty for resource: "+rp.Resource)
-		}
-		for _, pol := range rp.Policies {
-			if !validPolicies[pol] {
-				return apperror.New(apperror.CodeInvalidInput, "invalid policy value: "+pol)
-			}
-		}
-	}
-
-	resp, err := h.service.UpdateAccessPolicy(reqCtx, userID, &req)
 	if err != nil {
 		return err
 	}

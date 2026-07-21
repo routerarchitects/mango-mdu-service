@@ -266,7 +266,7 @@ func derivePermissionsFromPolicy(policy *prov.ProvManagementPolicy) models.Effec
 		res.Configurations = models.RbacDecision{Allowed: true, Mode: mode}
 	}
 	// Devices
-	if allowed, mode := checkAccess([]string{"inventory"}); allowed {
+	if allowed, mode := checkAccess([]string{"inventory", "device"}); allowed {
 		res.Devices = models.RbacDecision{Allowed: true, Mode: mode}
 	}
 

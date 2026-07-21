@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
 	"github.com/routerarchitects/mango-mdu-service/internal/models"
+	"github.com/routerarchitects/ra-common-mods/apperror"
 )
 
 type EntityService struct {
@@ -119,6 +120,16 @@ func (s *EntityService) CreateEntity(reqCtx prov.RequestContext, req *models.Cre
 	parentID := ""
 	if req.ParentEntityID != nil {
 		parentID = *req.ParentEntityID
+	}
+
+	if parentID != "" && parentID != "00000000-0000-0000-0000-000000000000" {
+		parentEnt, err := s.provClient.GetEntity(reqCtx, parentID)
+		if err != nil {
+			return nil, err
+		}
+		if parentEnt.Type == "normal" || parentEnt.Type == "subscriber" {
+			return nil, apperror.New(apperror.CodeInvalidInput, "cannot create a child entity under a customer entity")
+		}
 	}
 
 	entType := "normal"

@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -201,42 +202,37 @@ func (s *AssignmentService) CreateAssignment(reqCtx prov.RequestContext, userID 
 
 	if targetRole == nil {
 		isAlreadyAssigned = false
-		// 1. Resolve or create management policy specifically for this user
+		// 1. Resolve or create management policy
 		var policyID string
 		policies, err := s.provClient.ListAllPolicies(reqCtx)
 		if err != nil {
 			return nil, false, err
 		}
 		for _, p := range policies {
-			match := false
-			policyName := req.Role + "Policy-" + userID
-			if req.ScopeType == "entity" && p.Entity == req.ScopeID && p.Info.Name == policyName {
-				match = true
-			} else if req.ScopeType == "venue" && p.Venue == req.ScopeID && p.Info.Name == policyName {
-				match = true
-			}
-
-			if match {
+			if strings.EqualFold(p.Info.Name, req.Role) {
 				policyID = p.Info.ID
 				break
 			}
 		}
 
 		if policyID == "" {
-			newPolicyUUID := uuid.NewString()
-			defaultEntries := getDefaultPolicyEntries(req.Role, userID, req.ScopeType, req.ScopeID)
+			callerInfo, err := s.secClient.ValidateToken(reqCtx.Context, reqCtx.BearerToken)
+			if err != nil {
+				return nil, false, fmt.Errorf("failed to validate caller token: %w", err)
+			}
+			callerRole := strings.ToLower(callerInfo.UserRole)
+			if callerRole != "root" && callerRole != "system" {
+				return nil, false, apperror.New(apperror.CodeInvalidInput, fmt.Sprintf("management policy for role %q does not exist; only root administrators can create system policies", req.Role))
+			}
 
+			newPolicyUUID := uuid.NewString()
+			fixedEntries := getFixedPolicyEntries(req.Role)
 			newPolicy := &prov.ProvManagementPolicy{
 				Info: prov.ProvObjectInfo{
-					Name:        req.Role + "Policy-" + userID,
-					Description: "Auto-generated policy for " + req.Role + " assigned to " + userID,
+					Name:        req.Role,
+					Description: "Fixed system policy for " + req.Role,
 				},
-				Entries: defaultEntries,
-			}
-			if req.ScopeType == "entity" {
-				newPolicy.Entity = req.ScopeID
-			} else {
-				newPolicy.Venue = req.ScopeID
+				Entries: fixedEntries,
 			}
 
 			createdPolicy, err := s.provClient.CreatePolicy(reqCtx, newPolicyUUID, newPolicy)
@@ -325,12 +321,7 @@ func (s *AssignmentService) DeleteAssignment(reqCtx prov.RequestContext, userID 
 
 	if len(r.Users) == 0 {
 		// Delete role if no users left
-		err = s.provClient.DeleteRole(reqCtx, assignmentID)
-		if err != nil {
-			return err
-		}
-		// Also delete the associated policy
-		return s.provClient.DeletePolicy(reqCtx, r.ManagementPolicy)
+		return s.provClient.DeleteRole(reqCtx, assignmentID)
 	}
 
 	_, err = s.provClient.UpdateRole(reqCtx, assignmentID, r)
@@ -412,212 +403,50 @@ func (s *AssignmentService) GetAccessPolicy(reqCtx prov.RequestContext, userID s
 	}, nil
 }
 
-func (s *AssignmentService) UpdateAccessPolicy(reqCtx prov.RequestContext, userID string, policy *models.UserAccessPolicy) (*models.UserAccessPolicy, error) {
-	if policy.Scope == "venue" && policy.VenueID != "" {
-		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
-		if err != nil {
-			return nil, err
-		}
-		v, ok := venueMap[policy.VenueID]
-		if !ok {
-			return nil, apperror.New(apperror.CodeNotFound, "venue not found")
-		}
-		if v.Entity != policy.EntityID {
-			return nil, apperror.New(apperror.CodeInvalidInput, "the specified venue does not belong to the specified entity")
-		}
-	}
-
-	roles, err := s.provClient.ListAllRoles(reqCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	var targetRole *prov.ProvManagementRole
-	for _, r := range roles {
-		userBound := false
-		for _, u := range r.Users {
-			if u == userID {
-				userBound = true
-				break
-			}
-		}
-
-		if userBound {
-			if policy.RoleTemplate != "" && r.Info.Name != policy.RoleTemplate {
-				continue
-			}
-
-			if policy.Scope == "entity" && r.Entity == policy.EntityID {
-				targetRole = &r
-				break
-			} else if policy.Scope == "venue" && r.Venue == policy.VenueID {
-				targetRole = &r
-				break
-			}
-		}
-	}
-
-	if targetRole == nil {
-		return nil, apperror.New(apperror.CodeNotFound, "user assignment not found")
-	}
-
-	// Group ResourcePermissions into ManagementPolicyEntries
-	accessMap := make(map[string][]string) // key: joined access list, val: resources list
-	var accessKeys []string
-
-	for _, rp := range policy.ResourcePermissions {
-		// Sort or format access list to make a deterministic key
-		joinedAccess := ""
-		for i, a := range rp.Policies {
-			if i > 0 {
-				joinedAccess += ","
-			}
-			joinedAccess += a
-		}
-		if _, exists := accessMap[joinedAccess]; !exists {
-			accessKeys = append(accessKeys, joinedAccess)
-		}
-		accessMap[joinedAccess] = append(accessMap[joinedAccess], rp.Resource)
-	}
-
-	var entries []prov.ProvManagementPolicyEntry
-	for _, k := range accessKeys {
-		var accessList []string
-		if k != "" {
-			accessList = stringsSplit(k, ",")
-		}
-		var policyJSON string
-		if policy.Scope == "entity" {
-			policyJSON = fmt.Sprintf(`{"type":"entity","entityId":"%s","includeVenues":true,"includeChildEntities":true}`, policy.EntityID)
-		} else if policy.Scope == "venue" {
-			policyJSON = fmt.Sprintf(`{"type":"venue","venueId":"%s","includeVenues":true,"includeChildEntities":true}`, policy.VenueID)
-		}
-		entries = append(entries, prov.ProvManagementPolicyEntry{
-			Users:     []string{userID},
-			Resources: accessMap[k],
-			Access:    accessList,
-			Policy:    policyJSON,
-		})
-	}
-
-	provPolicy, err := s.provClient.GetPolicy(reqCtx, targetRole.ManagementPolicy)
-	if err != nil {
-		return nil, err
-	}
-
-	provPolicy.Entries = entries
-	_, err = s.provClient.UpdatePolicy(reqCtx, provPolicy.Info.ID, provPolicy)
-	if err != nil {
-		return nil, err
-	}
-
-	resolvedEntityID := policy.EntityID
-	if policy.Scope == "venue" && policy.VenueID != "" {
-		_, _, _, venueMap, err := s.getLookupMaps(reqCtx)
-		if err == nil {
-			if v, ok := venueMap[policy.VenueID]; ok && v.Entity != "" {
-				resolvedEntityID = v.Entity
-			}
-		}
-	}
-
-	return &models.UserAccessPolicy{
-		Scope:               policy.Scope,
-		EntityID:            resolvedEntityID,
-		VenueID:             policy.VenueID,
-		RoleTemplate:        targetRole.Info.Name,
-		ResourcePermissions: policy.ResourcePermissions,
-	}, nil
-}
-
-func stringsSplit(s, sep string) []string {
-	var res []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if string(s[i]) == sep {
-			res = append(res, s[start:i])
-			start = i + 1
-		}
-	}
-	res = append(res, s[start:])
-	return res
-}
-
-func getDefaultPolicyEntries(role string, userID string, scopeType string, scopeID string) []prov.ProvManagementPolicyEntry {
-	var policyJSON string
-	if scopeType == "entity" {
-		policyJSON = fmt.Sprintf(`{"type":"entity","entityId":"%s","includeVenues":true,"includeChildEntities":true}`, scopeID)
-	} else if scopeType == "venue" {
-		policyJSON = fmt.Sprintf(`{"type":"venue","venueId":"%s","includeVenues":true,"includeChildEntities":true}`, scopeID)
-	}
-
-	allResources := []string{"entity", "venue", "operator", "inventory", "configuration", "managementPolicy", "managementRole"}
-
-	switch role {
+func getFixedPolicyEntries(role string) []prov.ProvManagementPolicyEntry {
+	switch strings.ToLower(role) {
 	case "root", "admin", "system":
-		// Full access to all resources
 		return []prov.ProvManagementPolicyEntry{
 			{
-				Users:     []string{userID},
-				Resources: allResources,
-				Access:    []string{"READ", "LIST", "CREATE", "MODIFY", "DELETE"},
-				Policy:    policyJSON,
+				Access:    []string{"FULL"},
+				Resources: []string{"entity", "venue", "device", "configuration", "managementPolicy", "managementRole"},
 			},
 		}
 	case "csr":
-		// Read-only to all resources
 		return []prov.ProvManagementPolicyEntry{
 			{
-				Users:     []string{userID},
-				Resources: allResources,
-				Access:    []string{"READ", "LIST"},
-				Policy:    policyJSON,
-			},
-		}
-	case "installer":
-		// Read/Write configuration and inventory
-		return []prov.ProvManagementPolicyEntry{
-			{
-				Users:     []string{userID},
-				Resources: []string{"configuration", "inventory"},
-				Access:    []string{"READ", "LIST", "MODIFY"},
-				Policy:    policyJSON,
+				Access:    []string{"READ"},
+				Resources: []string{"entity", "venue", "device", "configuration"},
 			},
 		}
 	case "noc":
-		// Read-only for structural, Read/Write for configuration and inventory
 		return []prov.ProvManagementPolicyEntry{
 			{
-				Users:     []string{userID},
-				Resources: []string{"entity", "venue", "operator", "managementPolicy", "managementRole"},
-				Access:    []string{"READ", "LIST"},
-				Policy:    policyJSON,
+				Access:    []string{"READ"},
+				Resources: []string{"entity", "venue"},
 			},
 			{
-				Users:     []string{userID},
-				Resources: []string{"configuration", "inventory"},
-				Access:    []string{"READ", "LIST", "MODIFY"},
-				Policy:    policyJSON,
+				Access:    []string{"READ", "MODIFY"},
+				Resources: []string{"configuration", "device"},
 			},
 		}
-	case "accounting":
-		// Read-only to structural resources
+	case "installer":
 		return []prov.ProvManagementPolicyEntry{
 			{
-				Users:     []string{userID},
-				Resources: []string{"entity", "venue", "operator", "managementPolicy", "managementRole"},
-				Access:    []string{"READ", "LIST"},
-				Policy:    policyJSON,
+				Access:    []string{"READ"},
+				Resources: []string{"venue", "configuration"},
+			},
+			{
+				Access:    []string{"READ", "MODIFY"},
+				Resources: []string{"device"},
 			},
 		}
 	default:
 		// Default fallback is read-only for safety
 		return []prov.ProvManagementPolicyEntry{
 			{
-				Users:     []string{userID},
-				Resources: allResources,
-				Access:    []string{"READ", "LIST"},
-				Policy:    policyJSON,
+				Access:    []string{"READ"},
+				Resources: []string{"entity", "venue", "device", "configuration", "managementPolicy", "managementRole"},
 			},
 		}
 	}
