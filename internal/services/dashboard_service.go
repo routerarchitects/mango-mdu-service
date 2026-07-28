@@ -77,24 +77,43 @@ func NewDashboardService(provClient *prov.Client) *DashboardService {
 }
 
 func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.RequestContext, scopeId string) (*DashboardResponse, error) {
-	// Attempt to query OWPROV entities and venues
-	var entityCount int = 12
-	var venueCount int = 45
-	var operatorCount int = 4
-	var deviceCount int = 320
-	var onlineCount int = 308
-	var offlineCount int = 9
-	var warningCount int = 3
+	if s.provClient == nil {
+		return nil, fmt.Errorf("owprov service discovery client is uninitialized")
+	}
 
-	if s.provClient != nil {
-		entities, err := s.provClient.ListEntities(reqCtx, 100, 0)
-		if err == nil && len(entities) > 0 {
-			entityCount = len(entities)
+	// Fetch real entities from OWPROV (fail fast on downstream error)
+	entities, err := s.provClient.ListEntities(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("owprov ListEntities error: %w", err)
+	}
+
+	// Fetch real venues from OWPROV (fail fast on downstream error)
+	venues, err := s.provClient.ListVenues(reqCtx, 1000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("owprov ListVenues error: %w", err)
+	}
+
+	entityCount := len(entities)
+	venueCount := len(venues)
+	deviceCount := 0
+
+	// Count devices across all fetched venues
+	for _, v := range venues {
+		deviceCount += len(v.Devices)
+	}
+
+	topVenuesList := make([]TopVenueTraffic, 0, len(venues))
+	for idx, v := range venues {
+		if idx >= 5 {
+			break
 		}
-		venues, err := s.provClient.ListVenues(reqCtx, 100, 0)
-		if err == nil && len(venues) > 0 {
-			venueCount = len(venues)
-		}
+		topVenuesList = append(topVenuesList, TopVenueTraffic{
+			Name:          v.Info.Name,
+			UnitCount:     len(v.Devices),
+			ActiveClients: 0,
+			UsageGb:       "0 GB",
+			Status:        "Optimal",
+		})
 	}
 
 	res := &DashboardResponse{
@@ -103,7 +122,7 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 			{
 				Key:        "operators",
 				Label:      "Operators",
-				Value:      operatorCount,
+				Value:      0,
 				Delta:      0,
 				DeltaLabel: "Active Operators",
 				Severity:   "info",
@@ -112,90 +131,60 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 				Key:        "entities",
 				Label:      "Entities",
 				Value:      entityCount,
-				Delta:      1,
-				DeltaLabel: "1 added this week",
+				Delta:      0,
+				DeltaLabel: "OWPROV Scoped Entities",
 				Severity:   "info",
 			},
 			{
 				Key:        "venues",
 				Label:      "Venues",
 				Value:      venueCount,
-				Delta:      2,
-				DeltaLabel: "2 added this week",
+				Delta:      0,
+				DeltaLabel: "OWPROV Scoped Venues",
 				Severity:   "info",
 			},
 			{
 				Key:        "devices",
 				Label:      "Devices",
 				Value:      deviceCount,
-				Delta:      2,
-				DeltaLabel: fmt.Sprintf("%d online", onlineCount),
+				Delta:      0,
+				DeltaLabel: fmt.Sprintf("%d Inventory APs", deviceCount),
 				Severity:   "success",
 			},
 			{
 				Key:        "users",
 				Label:      "Users",
-				Value:      28,
-				Delta:      3,
-				DeltaLabel: "3 new users",
+				Value:      0,
+				Delta:      0,
+				DeltaLabel: "Users",
 				Severity:   "info",
 			},
 			{
 				Key:        "alerts",
 				Label:      "Alerts",
-				Value:      2,
-				Delta:      1,
-				DeltaLabel: "1 critical",
-				Severity:   "warning",
+				Value:      0,
+				Delta:      0,
+				DeltaLabel: "0 critical",
+				Severity:   "success",
 			},
 		},
 		Health: HealthSummary{
 			TotalDevices: deviceCount,
-			Online:       onlineCount,
-			Warning:      warningCount,
-			Offline:      offlineCount,
+			Online:       deviceCount,
+			Warning:      0,
+			Offline:      0,
 			Unknown:      0,
 		},
-		RecentAlerts: []RecentAlert{
-			{
-				ID:            "alert-101",
-				Severity:      "critical",
-				Title:         "AP-304 Offline",
-				Description:   "Access point in Building A - Floor 3 lost connectivity.",
-				OccurredAt:    "2026-07-28T15:00:00Z",
-				ResourceLabel: "AP-304",
-			},
-			{
-				ID:            "alert-102",
-				Severity:      "warning",
-				Title:         "High RF Channel Interference",
-				Description:   "Channel 6 experiencing 48% retry rate on Floor 12.",
-				OccurredAt:    "2026-07-28T14:30:00Z",
-				ResourceLabel: "AP-112",
-			},
-		},
+		RecentAlerts: []RecentAlert{},
 		Telemetry: TelemetrySummary{
-			AirtimeUtilization: 26,
-			NoiseFloorDbm:      -88,
-			CpuLoadPercent:     18,
-			MemoryLoadPercent:  42,
-			RssiDistribution: []map[string]interface{}{
-				{"label": "Excellent (> -65 dBm)", "percentage": 82, "color": "bg-emerald-500"},
-				{"label": "Fair (-65 to -75 dBm)", "percentage": 14, "color": "bg-amber-500"},
-				{"label": "Low Signal (< -75 dBm)", "percentage": 4, "color": "bg-rose-500"},
-			},
+			AirtimeUtilization: 0,
+			NoiseFloorDbm:      0,
+			CpuLoadPercent:     0,
+			MemoryLoadPercent:  0,
+			RssiDistribution:   []map[string]interface{}{},
 		},
-		SecurityProfiles: []TenantSecurityProfile{
-			{Name: "Dynamic PPSK (Private PSK)", Percentage: 65, Count: 5473, Color: "bg-emerald-500"},
-			{Name: "Passpoint / Hotspot 2.0", Percentage: 25, Count: 2105, Color: "bg-indigo-500"},
-			{Name: "WPA3 Enterprise (802.1X)", Percentage: 10, Count: 842, Color: "bg-sky-500"},
-		},
-		TopVenues: []TopVenueTraffic{
-			{Name: "Sunrise Towers - Building A", UnitCount: 240, ActiveClients: 680, UsageGb: "1,420 GB", Status: "Optimal"},
-			{Name: "Parkview Apartments - East Wing", UnitCount: 180, ActiveClients: 510, UsageGb: "1,150 GB", Status: "Optimal"},
-			{Name: "Grand Student Housing - Tower 2", UnitCount: 310, ActiveClients: 890, UsageGb: "2,380 GB", Status: "High Traffic"},
-			{Name: "Lakeside Commercial Units", UnitCount: 95, ActiveClients: 320, UsageGb: "840 GB", Status: "Optimal"},
-		},
+		SecurityProfiles: []TenantSecurityProfile{},
+		TopVenues:        topVenuesList,
 	}
 
 	return res, nil
