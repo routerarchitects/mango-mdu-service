@@ -277,3 +277,27 @@ func (a *ClientAdapter) ValidateToken(ctx context.Context, token string) error {
 func (a *ClientAdapter) ValidateAPIKey(ctx context.Context, apiKey string) error {
 	return a.client.ValidateAPIKey(ctx, apiKey)
 }
+
+type UserListResponse struct {
+	Users []UserInfo `json:"users"`
+}
+
+func (c *Client) ListUsers(ctx context.Context, bearerToken string) ([]UserInfo, error) {
+	resp, err := c.sendRequest(ctx, http.MethodGet, "/api/v1/users", bearerToken)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("owsec users returned status %d: %s", resp.StatusCode, string(body)))
+	}
+
+	var res UserListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode user list", err)
+	}
+
+	return res.Users, nil
+}

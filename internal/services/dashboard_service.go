@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/analytics"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/gw"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 )
 
 type DashboardKpi struct {
@@ -67,12 +70,23 @@ type DashboardResponse struct {
 }
 
 type DashboardService struct {
-	provClient *prov.Client
+	provClient      *prov.Client
+	secClient       *sec.Client
+	gwClient        *gw.Client
+	analyticsClient *analytics.Client
 }
 
-func NewDashboardService(provClient *prov.Client) *DashboardService {
+func NewDashboardService(
+	provClient *prov.Client,
+	secClient *sec.Client,
+	gwClient *gw.Client,
+	analyticsClient *analytics.Client,
+) *DashboardService {
 	return &DashboardService{
-		provClient: provClient,
+		provClient:      provClient,
+		secClient:       secClient,
+		gwClient:        gwClient,
+		analyticsClient: analyticsClient,
 	}
 }
 
@@ -81,13 +95,13 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 		return nil, fmt.Errorf("owprov service discovery client is uninitialized")
 	}
 
-	// Fetch real entities from OWPROV (fail fast on downstream error)
+	// 1. Fetch real entities from OWPROV (fail fast on downstream error)
 	entities, err := s.provClient.ListEntities(reqCtx, 1000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("owprov ListEntities error: %w", err)
 	}
 
-	// Fetch real venues from OWPROV (fail fast on downstream error)
+	// 2. Fetch real venues from OWPROV (fail fast on downstream error)
 	venues, err := s.provClient.ListVenues(reqCtx, 1000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("owprov ListVenues error: %w", err)
@@ -96,30 +110,71 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 	entityCount := len(entities)
 	venueCount := len(venues)
 
-	// Fetch real inventory devices from OWPROV
+	// 3. Fetch real inventory devices from OWPROV
 	var deviceCount int
 	inventoryTags, err := s.provClient.ListInventory(reqCtx, 1000, 0)
 	if err == nil {
 		deviceCount = len(inventoryTags)
 	} else {
-		// Fallback to summing devices across venue records
 		for _, v := range venues {
 			deviceCount += len(v.Devices)
 		}
 	}
 
-	// Fetch real operators from OWPROV
+	// 4. Fetch real operators from OWPROV
 	var operatorCount int
 	operators, err := s.provClient.ListOperators(reqCtx)
 	if err == nil {
 		operatorCount = len(operators)
 	}
 
-	// Fetch real user management role bindings from OWPROV
+	// 5. Fetch real users from OWSEC (or fallback to OWPROV management roles)
 	var userCount int
-	roles, err := s.provClient.ListManagementRoles(reqCtx, 1000, 0)
-	if err == nil {
-		userCount = len(roles)
+	if s.secClient != nil {
+		secUsers, err := s.secClient.ListUsers(ctx, reqCtx.BearerToken)
+		if err == nil && len(secUsers) > 0 {
+			userCount = len(secUsers)
+		}
+	}
+	if userCount == 0 {
+		roles, err := s.provClient.ListManagementRoles(reqCtx, 1000, 0)
+		if err == nil {
+			userCount = len(roles)
+		}
+	}
+
+	// 6. Fetch live device connectivity status from OWGW
+	var onlineDevices int = deviceCount
+	var offlineDevices int = 0
+	if s.gwClient != nil {
+		gwDevices, err := s.gwClient.ListDevicesStatus(reqCtx)
+		if err == nil && len(gwDevices) > 0 {
+			onlineCount := 0
+			for _, d := range gwDevices {
+				if d.Connected {
+					onlineCount++
+				}
+			}
+			onlineDevices = onlineCount
+			if deviceCount > onlineDevices {
+				offlineDevices = deviceCount - onlineDevices
+			}
+		}
+	}
+
+	// 7. Fetch live telemetry metrics from OWANALYTICS
+	var telemetry TelemetrySummary
+	if s.analyticsClient != nil {
+		anData, err := s.analyticsClient.GetTelemetry(reqCtx)
+		if err == nil && anData != nil {
+			telemetry = TelemetrySummary{
+				AirtimeUtilization: anData.AirtimeUtilization,
+				NoiseFloorDbm:      anData.NoiseFloorDbm,
+				CpuLoadPercent:     anData.CpuLoadPercent,
+				MemoryLoadPercent:  anData.MemoryLoadPercent,
+				RssiDistribution:   anData.RssiDistribution,
+			}
+		}
 	}
 
 	topVenuesList := make([]TopVenueTraffic, 0, len(venues))
@@ -168,7 +223,7 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 				Label:      "Devices",
 				Value:      deviceCount,
 				Delta:      0,
-				DeltaLabel: fmt.Sprintf("%d Inventory APs", deviceCount),
+				DeltaLabel: fmt.Sprintf("%d Online APs", onlineDevices),
 				Severity:   "success",
 			},
 			{
@@ -176,33 +231,27 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 				Label:      "Users",
 				Value:      userCount,
 				Delta:      0,
-				DeltaLabel: "Management Users",
+				DeltaLabel: "Registered Users",
 				Severity:   "info",
 			},
 			{
 				Key:        "alerts",
 				Label:      "Alerts",
-				Value:      0,
+				Value:      offlineDevices,
 				Delta:      0,
-				DeltaLabel: "0 critical",
+				DeltaLabel: fmt.Sprintf("%d critical", offlineDevices),
 				Severity:   "success",
 			},
 		},
 		Health: HealthSummary{
 			TotalDevices: deviceCount,
-			Online:       deviceCount,
+			Online:       onlineDevices,
 			Warning:      0,
-			Offline:      0,
+			Offline:      offlineDevices,
 			Unknown:      0,
 		},
-		RecentAlerts: []RecentAlert{},
-		Telemetry: TelemetrySummary{
-			AirtimeUtilization: 0,
-			NoiseFloorDbm:      0,
-			CpuLoadPercent:     0,
-			MemoryLoadPercent:  0,
-			RssiDistribution:   []map[string]interface{}{},
-		},
+		RecentAlerts:     []RecentAlert{},
+		Telemetry:        telemetry,
 		SecurityProfiles: []TenantSecurityProfile{},
 		TopVenues:        topVenuesList,
 	}

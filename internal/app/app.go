@@ -8,6 +8,8 @@ import (
 
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
 	"github.com/routerarchitects/mango-mdu-service/internal/db"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/analytics"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/gw"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 	apphttp "github.com/routerarchitects/mango-mdu-service/internal/http"
@@ -99,14 +101,32 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		}
 		secClient.AuthEnabled = cfg.Auth.Enabled
 
+		gwClient, err := gw.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
+		if err != nil {
+			rootLog.Warn("failed to create gw client for service discovery", "error", err)
+		}
+
+		analyticsClient, err := analytics.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
+		if err != nil {
+			rootLog.Warn("failed to create analytics client for service discovery", "error", err)
+		}
+
 		if cfg.RPC.Enabled {
 			tokenValidator = sec.NewClientAdapter(secClient)
 		}
 
-		dashboardService := services.NewDashboardService(provClient)
+		dashboardService := services.NewDashboardService(provClient, secClient, gwClient, analyticsClient)
 		dashboardHandler = handlers.NewDashboardHandler(dashboardService)
 	} else {
-		dashboardServiceFallback := services.NewDashboardService(nil)
+		dashboardServiceFallback := services.NewDashboardService(nil, nil, nil, nil)
 		dashboardHandler = handlers.NewDashboardHandler(dashboardServiceFallback)
 	}
 
