@@ -7,14 +7,9 @@ import (
 )
 
 type PublicDeps struct {
-	AuthHandler       fiber.Handler
-	Subsystem         subsysteroutes.Config
-	SessionHandler    *handlers.SessionHandler
-	HierarchyHandler  *handlers.HierarchyHandler
-	EntityHandler     *handlers.EntityHandler
-	VenueHandler      *handlers.VenueHandler
-	AssignmentHandler *handlers.AssignmentHandler
-	DashboardHandler  *handlers.DashboardHandler
+	AuthHandler      fiber.Handler
+	Subsystem        subsysteroutes.Config
+	DashboardHandler *handlers.DashboardHandler
 }
 
 type PrivateDeps struct {

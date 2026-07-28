@@ -24,11 +24,6 @@ type Dependencies struct {
 	PrivateAuthConfig auth.InternalAPIKeyConfig
 	TokenValidator    auth.PublicAuthValidator
 	AuthEnabled       bool
-	SessionHandler    *handlers.SessionHandler
-	HierarchyHandler  *handlers.HierarchyHandler
-	EntityHandler     *handlers.EntityHandler
-	VenueHandler      *handlers.VenueHandler
-	AssignmentHandler *handlers.AssignmentHandler
 	DashboardHandler  *handlers.DashboardHandler
 }
 
@@ -39,13 +34,9 @@ type Module struct {
 }
 
 func NewModule(deps Dependencies) (*Module, error) {
-	if deps.SessionHandler == nil ||
-		deps.HierarchyHandler == nil ||
-		deps.EntityHandler == nil ||
-		deps.VenueHandler == nil ||
-		deps.AssignmentHandler == nil {
+	if deps.DashboardHandler == nil {
 		if deps.ServerLogger != nil {
-			deps.ServerLogger.Warn("one or more required business handlers are nil; some public API endpoints will not be registered")
+			deps.ServerLogger.Warn("dashboard handler is nil; dashboard API endpoint will not be registered")
 		}
 	}
 
@@ -81,14 +72,9 @@ func NewModule(deps Dependencies) (*Module, error) {
 
 	// Configure public routes
 	routes.RegisterPublic(publicApp, routes.PublicDeps{
-		AuthHandler:       authMiddleware.GetPublicAuthHandler(),
-		Subsystem:         deps.SubsystemConfig,
-		SessionHandler:    deps.SessionHandler,
-		HierarchyHandler:  deps.HierarchyHandler,
-		EntityHandler:     deps.EntityHandler,
-		VenueHandler:      deps.VenueHandler,
-		AssignmentHandler: deps.AssignmentHandler,
-		DashboardHandler:  deps.DashboardHandler,
+		AuthHandler:      authMiddleware.GetPublicAuthHandler(),
+		Subsystem:        deps.SubsystemConfig,
+		DashboardHandler: deps.DashboardHandler,
 	})
 
 	// Configure private routes

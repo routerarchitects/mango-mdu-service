@@ -75,11 +75,6 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		rootLog.Info("service RPC and token validation are disabled via configuration")
 	}
 
-	var sessionHandler *handlers.SessionHandler
-	var hierarchyHandler *handlers.HierarchyHandler
-	var entityHandler *handlers.EntityHandler
-	var venueHandler *handlers.VenueHandler
-	var assignmentHandler *handlers.AssignmentHandler
 	var dashboardHandler *handlers.DashboardHandler
 
 	if cfg.Discovery.Enabled {
@@ -108,21 +103,6 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 			tokenValidator = sec.NewClientAdapter(secClient)
 		}
 
-		sessionService := services.NewSessionService(secClient, provClient)
-		sessionHandler = handlers.NewSessionHandler(sessionService, cfg.Auth.Enabled)
-
-		hierarchyService := services.NewHierarchyService(provClient)
-		hierarchyHandler = handlers.NewHierarchyHandler(hierarchyService)
-
-		entityService := services.NewEntityService(provClient)
-		entityHandler = handlers.NewEntityHandler(entityService)
-
-		venueService := services.NewVenueService(provClient)
-		venueHandler = handlers.NewVenueHandler(venueService)
-
-		assignmentService := services.NewAssignmentService(provClient, secClient)
-		assignmentHandler = handlers.NewAssignmentHandler(assignmentService)
-
 		dashboardService := services.NewDashboardService(provClient)
 		dashboardHandler = handlers.NewDashboardHandler(dashboardService)
 	} else {
@@ -150,11 +130,6 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		PrivateAuthConfig: privateAuthConfig,
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
-		SessionHandler:    sessionHandler,
-		HierarchyHandler:  hierarchyHandler,
-		EntityHandler:     entityHandler,
-		VenueHandler:      venueHandler,
-		AssignmentHandler: assignmentHandler,
 		DashboardHandler:  dashboardHandler,
 	})
 	if err != nil {

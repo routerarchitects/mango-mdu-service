@@ -114,15 +114,9 @@ func NewServiceAuth(
 			publicCfg.Validator = validator
 		}
 		var err error
-		rawPublicAuth, err := auth.RequirePublicAuth(publicCfg)
+		publicAuth, err = auth.RequirePublicAuth(publicCfg)
 		if err != nil {
 			return nil, err
-		}
-		publicAuth = func(c fiber.Ctx) error {
-			if c.Method() == fiber.MethodOptions {
-				return c.Next()
-			}
-			return rawPublicAuth(c)
 		}
 	}
 
