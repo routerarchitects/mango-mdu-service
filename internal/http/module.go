@@ -29,6 +29,7 @@ type Dependencies struct {
 	EntityHandler     *handlers.EntityHandler
 	VenueHandler      *handlers.VenueHandler
 	AssignmentHandler *handlers.AssignmentHandler
+	DashboardHandler  *handlers.DashboardHandler
 }
 
 type Module struct {
@@ -87,6 +88,7 @@ func NewModule(deps Dependencies) (*Module, error) {
 		EntityHandler:     deps.EntityHandler,
 		VenueHandler:      deps.VenueHandler,
 		AssignmentHandler: deps.AssignmentHandler,
+		DashboardHandler:  deps.DashboardHandler,
 	})
 
 	// Configure private routes

@@ -14,6 +14,7 @@ type PublicDeps struct {
 	EntityHandler     *handlers.EntityHandler
 	VenueHandler      *handlers.VenueHandler
 	AssignmentHandler *handlers.AssignmentHandler
+	DashboardHandler  *handlers.DashboardHandler
 }
 
 type PrivateDeps struct {
@@ -37,7 +38,10 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 	// Base API V1 route group shared by all public endpoints
 	apiV1 := group.Group("/api/v1")
 
-	// Register other handlers
+	// Register handlers
+	if deps.DashboardHandler != nil {
+		deps.DashboardHandler.Register(apiV1)
+	}
 	if deps.SessionHandler != nil {
 		deps.SessionHandler.Register(apiV1)
 	}

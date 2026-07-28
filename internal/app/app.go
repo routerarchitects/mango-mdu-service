@@ -80,6 +80,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	var entityHandler *handlers.EntityHandler
 	var venueHandler *handlers.VenueHandler
 	var assignmentHandler *handlers.AssignmentHandler
+	var dashboardHandler *handlers.DashboardHandler
 
 	if cfg.Discovery.Enabled {
 		provClient, err := prov.NewClient(
@@ -121,6 +122,12 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 
 		assignmentService := services.NewAssignmentService(provClient, secClient)
 		assignmentHandler = handlers.NewAssignmentHandler(assignmentService)
+
+		dashboardService := services.NewDashboardService(provClient)
+		dashboardHandler = handlers.NewDashboardHandler(dashboardService)
+	} else {
+		dashboardServiceFallback := services.NewDashboardService(nil)
+		dashboardHandler = handlers.NewDashboardHandler(dashboardServiceFallback)
 	}
 
 	// 5. Assemble Fiber HTTP apps module
@@ -148,6 +155,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		EntityHandler:     entityHandler,
 		VenueHandler:      venueHandler,
 		AssignmentHandler: assignmentHandler,
+		DashboardHandler:  dashboardHandler,
 	})
 	if err != nil {
 		database.Close()
