@@ -527,6 +527,22 @@ func (c *Client) GetTree(reqCtx RequestContext) (*ProvTreeNode, error) {
 	return &tree, nil
 }
 
+type ProvInventoryTag struct {
+	ID           string `json:"id"`
+	SerialNumber string `json:"serialNumber"`
+	Venue        string `json:"venue"`
+	Entity       string `json:"entity"`
+	DevClass     string `json:"devClass"`
+}
+
+type ProvInventoryList struct {
+	Taglist []ProvInventoryTag `json:"taglist"`
+}
+
+type ProvOperatorList struct {
+	Operators []ProvOperator `json:"operators"`
+}
+
 // Entity APIs--------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 func (c *Client) ListEntities(reqCtx RequestContext, limit, offset int) ([]ProvEntity, error) {
 	u := fmt.Sprintf("/api/v1/entity?limit=%d&offset=%d", limit, offset)
@@ -547,6 +563,70 @@ func (c *Client) ListEntities(reqCtx RequestContext, limit, offset int) ([]ProvE
 	}
 
 	return list.Entities, nil
+}
+
+func (c *Client) ListInventory(reqCtx RequestContext, limit, offset int) ([]ProvInventoryTag, error) {
+	u := fmt.Sprintf("/api/v1/inventory?limit=%d&offset=%d", limit, offset)
+	resp, err := c.sendRequest(reqCtx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("owprov inventory returned status %d: %s", resp.StatusCode, string(body)))
+	}
+
+	var list ProvInventoryList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		// Fallback: try decoding array directly
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode inventory list", err)
+	}
+
+	return list.Taglist, nil
+}
+
+func (c *Client) ListOperators(reqCtx RequestContext) ([]ProvOperator, error) {
+	u := "/api/v1/operator?withExtendedInfo=true"
+	resp, err := c.sendRequest(reqCtx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("owprov operator returned status %d: %s", resp.StatusCode, string(body)))
+	}
+
+	var list ProvOperatorList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode operator list", err)
+	}
+
+	return list.Operators, nil
+}
+
+func (c *Client) ListManagementRoles(reqCtx RequestContext, limit, offset int) ([]ProvManagementRole, error) {
+	u := fmt.Sprintf("/api/v1/managementRole?limit=%d&offset=%d", limit, offset)
+	resp, err := c.sendRequest(reqCtx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("owprov managementRole returned status %d: %s", resp.StatusCode, string(body)))
+	}
+
+	var list ProvManagementRoleList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode managementRole list", err)
+	}
+
+	return list.Roles, nil
 }
 
 func (c *Client) GetEntity(reqCtx RequestContext, uuid string) (*ProvEntity, error) {

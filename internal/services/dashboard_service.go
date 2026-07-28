@@ -95,11 +95,31 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 
 	entityCount := len(entities)
 	venueCount := len(venues)
-	deviceCount := 0
 
-	// Count devices across all fetched venues
-	for _, v := range venues {
-		deviceCount += len(v.Devices)
+	// Fetch real inventory devices from OWPROV
+	var deviceCount int
+	inventoryTags, err := s.provClient.ListInventory(reqCtx, 1000, 0)
+	if err == nil {
+		deviceCount = len(inventoryTags)
+	} else {
+		// Fallback to summing devices across venue records
+		for _, v := range venues {
+			deviceCount += len(v.Devices)
+		}
+	}
+
+	// Fetch real operators from OWPROV
+	var operatorCount int
+	operators, err := s.provClient.ListOperators(reqCtx)
+	if err == nil {
+		operatorCount = len(operators)
+	}
+
+	// Fetch real user management role bindings from OWPROV
+	var userCount int
+	roles, err := s.provClient.ListManagementRoles(reqCtx, 1000, 0)
+	if err == nil {
+		userCount = len(roles)
 	}
 
 	topVenuesList := make([]TopVenueTraffic, 0, len(venues))
@@ -122,7 +142,7 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 			{
 				Key:        "operators",
 				Label:      "Operators",
-				Value:      0,
+				Value:      operatorCount,
 				Delta:      0,
 				DeltaLabel: "Active Operators",
 				Severity:   "info",
@@ -154,9 +174,9 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 			{
 				Key:        "users",
 				Label:      "Users",
-				Value:      0,
+				Value:      userCount,
 				Delta:      0,
-				DeltaLabel: "Users",
+				DeltaLabel: "Management Users",
 				Severity:   "info",
 			},
 			{
