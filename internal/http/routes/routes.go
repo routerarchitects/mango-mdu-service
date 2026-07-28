@@ -38,24 +38,9 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 	// Base API V1 route group shared by all public endpoints
 	apiV1 := group.Group("/api/v1")
 
-	// Register handlers
+	// Register Dashboard handler only
 	if deps.DashboardHandler != nil {
 		deps.DashboardHandler.Register(apiV1)
-	}
-	if deps.SessionHandler != nil {
-		deps.SessionHandler.Register(apiV1)
-	}
-	if deps.HierarchyHandler != nil {
-		deps.HierarchyHandler.Register(apiV1)
-	}
-	if deps.EntityHandler != nil {
-		deps.EntityHandler.Register(apiV1)
-	}
-	if deps.VenueHandler != nil {
-		deps.VenueHandler.Register(apiV1)
-	}
-	if deps.AssignmentHandler != nil {
-		deps.AssignmentHandler.Register(apiV1)
 	}
 }
 
