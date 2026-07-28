@@ -144,8 +144,8 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 	}
 
 	// 6. Fetch live device connectivity status from OWGW
-	var onlineDevices int = deviceCount
-	var offlineDevices int = 0
+	var onlineDevices int = 0
+	var offlineDevices int = deviceCount
 	if s.gwClient != nil {
 		gwDevices, err := s.gwClient.ListDevicesStatus(reqCtx)
 		if err == nil && len(gwDevices) > 0 {
@@ -156,53 +156,50 @@ func (s *DashboardService) GetDashboard(ctx context.Context, reqCtx prov.Request
 				}
 			}
 			onlineDevices = onlineCount
-			if deviceCount > onlineDevices {
+			if deviceCount >= onlineDevices {
 				offlineDevices = deviceCount - onlineDevices
 			}
 		}
 	}
 
-	// 7. Fetch live telemetry metrics from OWANALYTICS (with baseline defaults if unpopulated)
-	var telemetry TelemetrySummary
+	// 7. Fetch live telemetry metrics from OWANALYTICS (strictly 0 / empty if no live data)
+	telemetry := TelemetrySummary{
+		AirtimeUtilization: 0,
+		NoiseFloorDbm:      0,
+		CpuLoadPercent:     0,
+		MemoryLoadPercent:  0,
+		RssiDistribution:   []map[string]interface{}{},
+	}
 	if s.analyticsClient != nil {
 		anData, err := s.analyticsClient.GetTelemetry(reqCtx)
 		if err == nil && anData != nil {
-			telemetry = TelemetrySummary{
-				AirtimeUtilization: anData.AirtimeUtilization,
-				NoiseFloorDbm:      anData.NoiseFloorDbm,
-				CpuLoadPercent:     anData.CpuLoadPercent,
-				MemoryLoadPercent:  anData.MemoryLoadPercent,
-				RssiDistribution:   anData.RssiDistribution,
+			telemetry.AirtimeUtilization = anData.AirtimeUtilization
+			telemetry.NoiseFloorDbm = anData.NoiseFloorDbm
+			telemetry.CpuLoadPercent = anData.CpuLoadPercent
+			telemetry.MemoryLoadPercent = anData.MemoryLoadPercent
+			if len(anData.RssiDistribution) > 0 {
+				telemetry.RssiDistribution = anData.RssiDistribution
 			}
 		}
 	}
 
-	if telemetry.AirtimeUtilization == 0 {
-		telemetry.AirtimeUtilization = 26
-	}
-	if telemetry.NoiseFloorDbm == 0 {
-		telemetry.NoiseFloorDbm = -88
-	}
-	if telemetry.CpuLoadPercent == 0 {
-		telemetry.CpuLoadPercent = 18
-	}
-	if telemetry.MemoryLoadPercent == 0 {
-		telemetry.MemoryLoadPercent = 42
-	}
-	if len(telemetry.RssiDistribution) == 0 {
-		telemetry.RssiDistribution = []map[string]interface{}{
-			{"label": "Excellent (> -65 dBm)", "percentage": 82, "color": "bg-emerald-500"},
-			{"label": "Fair (-65 to -75 dBm)", "percentage": 14, "color": "bg-amber-500"},
-			{"label": "Low Signal (< -75 dBm)", "percentage": 4, "color": "bg-rose-500"},
+	// 8. Fetch real security configuration profiles from OWPROV
+	securityProfiles := make([]TenantSecurityProfile, 0)
+	configs, err := s.provClient.ListConfigurations(reqCtx, 1000, 0)
+	if err == nil && len(configs) > 0 {
+		totalCfg := len(configs)
+		for _, cfg := range configs {
+			pct := 100 / totalCfg
+			securityProfiles = append(securityProfiles, TenantSecurityProfile{
+				Name:       cfg.Name,
+				Percentage: pct,
+				Count:      1,
+				Color:      "bg-emerald-500",
+			})
 		}
 	}
 
-	securityProfiles := []TenantSecurityProfile{
-		{Name: "Dynamic PPSK (Private PSK)", Percentage: 65, Count: 5473, Color: "bg-emerald-500"},
-		{Name: "Passpoint / Hotspot 2.0", Percentage: 25, Count: 2105, Color: "bg-indigo-500"},
-		{Name: "WPA3 Enterprise (802.1X)", Percentage: 10, Count: 842, Color: "bg-sky-500"},
-	}
-
+	// 9. Format top venues directly from OWPROV real venue data
 	topVenuesList := make([]TopVenueTraffic, 0, len(venues))
 	for idx, v := range venues {
 		if idx >= 5 {

@@ -543,6 +543,37 @@ type ProvOperatorList struct {
 	Operators []ProvOperator `json:"operators"`
 }
 
+type ProvConfiguration struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type ProvConfigurationList struct {
+	Configurations []ProvConfiguration `json:"configurations"`
+}
+
+func (c *Client) ListConfigurations(reqCtx RequestContext, limit, offset int) ([]ProvConfiguration, error) {
+	u := fmt.Sprintf("/api/v1/configuration?limit=%d&offset=%d", limit, offset)
+	resp, err := c.sendRequest(reqCtx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, apperror.New(apperror.CodeInternal, fmt.Sprintf("owprov configuration returned status %d: %s", resp.StatusCode, string(body)))
+	}
+
+	var list ProvConfigurationList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to decode configuration list", err)
+	}
+
+	return list.Configurations, nil
+}
+
 // Entity APIs--------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 func (c *Client) ListEntities(reqCtx RequestContext, limit, offset int) ([]ProvEntity, error) {
 	u := fmt.Sprintf("/api/v1/entity?limit=%d&offset=%d", limit, offset)
