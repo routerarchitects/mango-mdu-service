@@ -35,18 +35,25 @@ So Phase 1 is already a real integration phase with **OWSEC + PROV**.
 
 ## Main Phase 1 API Surface
 
-Phase 1 includes the following Mango-facing API families:
-
+### Part A: Natively Implemented MDU APIs
+These API families are natively implemented and orchestrated by the `mango-mdu-service` Go codebase runtime:
 - `GET /api/v1/session` — OWSEC is the authoritative owner for user identity; MDU calls PROV to fetch the authenticated user's Mango bootstrap context (operator scope, roles, hierarchy visibility) and composes the normalized `/session` response.
-- `/api/v1/operators/*` — Standard APIs for managing operators.
+- `/api/v1/hierarchy` — Retrieves the resource hierarchy tree.
 - `/api/v1/entities/*` — APIs for entity hierarchy management wrapper.
 - `/api/v1/venues/*` — APIs for venue management wrapper.
-- `/api/v1/policies/*` — APIs for management policies wrapper.
-- `/api/v1/roles/*` — APIs for management roles wrapper.
 - `/api/v1/users/*` — User assignments and access-policy orchestration (e.g. `GET /api/v1/users/{userId}/assignments` and `GET /api/v1/users/{userId}/access-policy`).
 
+### Part B: Delegated Downstream APIs (PROV Delegation / Bypassing MDU)
+These APIs are not implemented or exposed by the `mango-mdu-service` Go codebase runtime. Instead, client applications call them directly on the Provisioning service (`owprov` / PROV) or Security service (`owsec` / SEC) using their active token:
+- `/api/v1/operators/*` — Standard APIs for managing operator details (GET, PUT, DELETE operator member details, plus collection-level listing and creation).
+- `/api/v1/operators/{operatorId}/subscribers` — Operator-scoped subscriber listing (bypasses MDU to call PROV `/api/v1/signup` directly).
+- `/api/v1/policies/*` — APIs for management policies.
+- `/api/v1/roles/*` — APIs for management roles.
+
+Detailed mappings for these direct-callable/passthrough routes are specified in [docs/passthroughApis.md](file:///home/iotina/routerarchitects_repos/mango-mdu-service/docs/passthroughApis.md).
+
 ### Excluded APIs
-Contacts, subscriber management (invite/creation), and subscriber devices are not exposed as active MDU contract routes in Phase 1 (with the sole exception of `/api/v1/operators/{operatorId}/subscribers` for operator-scoped listing). They are managed downstream in PROV.
+Contacts, subscriber management (invite/creation), subscriber listing, and subscriber devices are not exposed as active MDU contract routes in Phase 1. They are managed downstream in PROV.
 
 These API families are indicative workflow groupings for Phase 1. They are not a strict one-to-one route inventory and do not require MDU to mirror downstream route structure exactly.
 
@@ -99,8 +106,7 @@ If request or correlation IDs are missing, MDU generates them and preserves them
 For user-context PROV workflows, MDU sends:
 
 ```http
-x-api: <mdu-service-api-key>
-x-authorization: Bearer <owsec-token>
+Authorization: Bearer <owsec-token>
 x-request-id: <request-id>
 x-correlation-id: <correlation-id>
 ```
@@ -159,8 +165,7 @@ Once the token is valid, MDU determines which Phase 1 workflow is being executed
 
 If the workflow depends on PROV-owned data or authorization, MDU calls PROV with:
 
-- service authentication (`x-api`)
-- forwarded user context (`x-authorization`)
+- forwarded user context (`Authorization`)
 - trace headers (`x-request-id`, `x-correlation-id`)
 
 ## Step 6 — PROV evaluates access and returns truth
@@ -247,8 +252,7 @@ The exact MDU route may vary, but the read workflow is the same.
 3. MDU validates request parameters
 4. MDU decides which PROV route family is needed
 5. MDU calls PROV with:
-   - `x-api`
-   - `x-authorization`
+   - `Authorization` (bearer token)
    - request/correlation IDs
 6. PROV evaluates caller access and fetches domain truth
 7. PROV returns the result or an access failure
@@ -259,11 +263,8 @@ The exact MDU route may vary, but the read workflow is the same.
 
 Examples include:
 
-- `/api/v1/operators/*` using PROV `/operator` routes
 - `/api/v1/entities/*` using PROV `/entity` routes
 - `/api/v1/venues/*` using PROV `/venue` routes
-- `/api/v1/policies/*` using PROV `/managementPolicy` routes
-- `/api/v1/roles/*` using PROV `/managementRole` routes
 
 MDU may reshape or rename fields, but PROV remains the source of truth.
 
@@ -339,8 +340,7 @@ This section describes the mutation flow only for approved Phase 1 cases. It mus
    - basic business input rules that can be checked locally
 3. MDU determines which PROV-owned domain is being changed
 4. MDU forwards the request to PROV using:
-   - `x-api`
-   - `x-authorization`
+   - `Authorization` (bearer token)
    - request/correlation IDs
 5. PROV evaluates permissions and business rules
 6. PROV applies the mutation if allowed
@@ -467,48 +467,32 @@ To list, assign, or remove user bindings to entity and venue scopes:
 ### 3. Excluded Contact Workflows
 Contacts and Operator Contacts (backed by PROV `/contact` and `/operatorContact` routes) are out of scope for MDU in Phase 1 and are not exposed as active MDU endpoints.
 
-### 4. Operator Management (PROV via MDU & Direct)
-To manage operator profile details (retrieval, updates, and deletion through the MDU facade, or list and create operations directly to PROV):
-* **MDU Northbound API Endpoints:**
-  * **Operator Paths:**
-    * `GET /api/v1/operators/{operatorId}` (Retrieve operator details)
-    * `PUT /api/v1/operators/{operatorId}` (Update operator details)
-    * `DELETE /api/v1/operators/{operatorId}` (Delete an operator)
-* **Direct UI/Client API Endpoints (Bypassing MDU):**
-  * `GET /operator` (List all operators in PROV)
-  * `POST /operator/{uuid}` (Create a new operator in PROV; `{uuid}` must be set to `00000000-0000-0000-0000-000000000000` or `0` for new creation)
-* **Orchestration Flow:**
-  * **Hybrid Routing Model:** Standard client applications (e.g. the MDU UI) call PROV directly to list operators (`GET /operator`) and create a new operator (`POST /operator/{uuid}` where `{uuid}` is set to the nil/zero UUID `00000000-0000-0000-0000-000000000000` or `0`). Detail-level operations such as retrieving details, updating name/description, or deleting an operator are routed through the MDU facade. The MDU facade routes enforce OWSEC bearer authentication, while direct PROV list/create operations follow their own approved authentication paths.
+### 4. Operator Management (Direct-Callable on PROV)
+Operators bypass the MDU service entirely. Northbound clients query operators directly on PROV:
+* `GET /api/v1/operator` (List all operators in PROV)
+* `POST /api/v1/operator/{uuid}` (Create operator)
+* `GET /api/v1/operator/{operatorId}` (Retrieve operator details)
+* `PUT /api/v1/operator/{operatorId}` (Update operator details)
+* `DELETE /api/v1/operator/{operatorId}` (Delete operator)
 
-### 4a. Management Policies & Roles (PROV via MDU)
-To retrieve, create, update, or delete management policies and roles:
-* **MDU Northbound API Endpoints:**
-  * **Policies:**
-    * `GET /api/v1/policies` (List management policies)
-    * `POST /api/v1/policies` (Create management policy)
-    * `GET /api/v1/policies/{policyId}` (Get policy details)
-    * `PUT /api/v1/policies/{policyId}` (Update policy)
-    * `DELETE /api/v1/policies/{policyId}` (Delete policy)
-  * **Roles:**
-    * `GET /api/v1/roles` (List management roles)
-    * `POST /api/v1/roles` (Create management role)
-    * `GET /api/v1/roles/{roleId}` (Get role details)
-    * `PUT /api/v1/roles/{roleId}` (Update role)
-    * `DELETE /api/v1/roles/{roleId}` (Delete role)
-* **Downstream PROV API Endpoints:**
-  * `GET /managementPolicy`, `POST /managementPolicy`, `PUT /managementPolicy/{uuid}`, `DELETE /managementPolicy/{uuid}`
-  * `GET /managementRole`, `POST /managementRole`, `PUT /managementRole/{id}`, `DELETE /managementRole/{id}`
-* **Orchestration Flow:**
-  * **Façade Pattern:** MDU acts as a stateless pass-through for policies and roles, forwarding the requests directly to the downstream PROV endpoints, translating schemas where necessary.
+### 4a. Management Policies & Roles (Direct-Callable on PROV)
+Management Policies and Roles are not wrapped by MDU. Northbound clients query them directly on PROV:
+* **Policies:**
+  * `GET /api/v1/managementPolicy` (List policies)
+  * `POST /api/v1/managementPolicy` (Create policy)
+  * `GET /api/v1/managementPolicy/{policyId}` (Get policy details)
+  * `PUT /api/v1/managementPolicy/{policyId}` (Update policy)
+  * `DELETE /api/v1/managementPolicy/{policyId}` (Delete policy)
+* **Roles:**
+  * `GET /api/v1/managementRole` (List roles)
+  * `POST /api/v1/managementRole` (Create role)
+  * `GET /api/v1/managementRole/{roleId}` (Get role details)
+  * `PUT /api/v1/managementRole/{roleId}` (Update role)
+  * `DELETE /api/v1/managementRole/{roleId}` (Delete role)
 
-### 5. Operator-scoped Subscriber Management (PROV via MDU)
-To list subscriber accounts associated with a specific operator:
-* **MDU Northbound API Endpoints:**
-  * `GET /api/v1/operators/{operatorId}/subscribers` (List subscribers)
-* **Downstream PROV API Endpoints:**
-  * `GET /subscriber`
-* **Orchestration Flow:**
-  * **List Subscribers (Constrained):** MDU calls PROV `GET /subscriber?listOnly=true` to retrieve all signup entries, filters the results to only include those matching the target `operatorId` parameter, and returns the filtered subset as a simple, unpaginated list.
+### 5. Subscriber Management (Direct-Callable on PROV)
+Subscriber listings are retrieved directly from PROV's signup endpoint:
+* `GET /api/v1/signup` (List signups / subscribers)
 ---
 
 # 9. Timeout and Retry Behavior
@@ -533,8 +517,8 @@ This section is a workflow-level error summary. The full normalized error model 
 
 If the request is invalid before downstream execution, MDU returns a normalized local error such as:
 
-- `validation_error`
-- `unauthorized`
+- `Bad Request`
+- `Unauthorized`
 
 ## OWSEC failures
 
@@ -544,24 +528,24 @@ If token validation fails, MDU returns an auth-related normalized error and stop
 
 If PROV denies access or scope, MDU returns the correct normalized Mango-facing access error such as:
 
-- `forbidden`
-- `not_found`
+- `Forbidden`
+- `Not Found`
 
 ## PROV dependency failures
 
 If PROV times out, becomes unavailable, or returns an invalid response, MDU maps that into normalized dependency errors such as:
 
-- `downstream_timeout`
-- `downstream_unavailable`
-- `bad_gateway`
-- `dependency_auth_failed`
-- `rate_limited`
+- `Gateway Timeout`
+- `Service Unavailable`
+- `Bad Gateway`
+- `Unauthorized` (dependency auth failed)
+- `Too Many Requests` (rate limited)
 
 ## Internal failures
 
 Unexpected failures map to:
 
-- `internal_error`
+- `Internal Server Error`
 
 If a route explicitly allows degraded or incomplete data, that behavior must be documented in the contract. Otherwise MDU should fail rather than return ambiguous mixed-success data.
 
@@ -661,7 +645,7 @@ UI
  -> call MDU with bearer token
  -> MDU validates token through OWSEC
  -> MDU validates request
- -> MDU calls PROV with x-api + x-authorization
+ -> MDU calls PROV with bearer token in Authorization header
  -> PROV resolves access and returns source-of-truth data
  -> MDU normalizes response
  -> UI receives Mango-facing contract

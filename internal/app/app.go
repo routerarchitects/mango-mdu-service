@@ -8,11 +8,15 @@ import (
 
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
 	"github.com/routerarchitects/mango-mdu-service/internal/db"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/analytics"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/gw"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/prov"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/sec"
 	apphttp "github.com/routerarchitects/mango-mdu-service/internal/http"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
+	"github.com/routerarchitects/mango-mdu-service/internal/services"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
-	"github.com/routerarchitects/ow-common-mods/servicerpc"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 	"github.com/routerarchitects/ra-common-mods/logger"
 )
 
@@ -27,10 +31,15 @@ type App struct {
 
 // New initializes all dependencies and builds the App.
 func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, error) {
+	// Validate discovery configuration dependency
+	if !cfg.Discovery.Enabled {
+		rootLog.Warn("service discovery is disabled via configuration; business API handlers will not be registered")
+	}
+
 	// Validate authentication configuration dependencies
 	if cfg.Auth.Enabled {
 		if !cfg.Discovery.Enabled || !cfg.RPC.Enabled {
-			return nil, fmt.Errorf("invalid configuration: public authentication (AUTH_ENABLED) requires both service discovery (DISCOVERY_ENABLED) and service RPC (SERVICE_RPC_ENABLED) to be enabled")
+			rootLog.Warn("public authentication (AUTH_ENABLED) is enabled but missing discovery or RPC; token validation may fail")
 		}
 	}
 
@@ -62,36 +71,75 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		rootLog.Info("service discovery is disabled via configuration")
 	}
 
-	// 4. Initialize RPC client factory (conditional)
-	var tokenValidator *owsec.SecurityClient
-	if cfg.RPC.Enabled && cfg.Discovery.Enabled {
-		rpcFactory, err := servicerpc.NewServiceRpc(
+	// 4. Initialize token validator (conditional)
+	var tokenValidator auth.PublicAuthValidator
+	if !cfg.RPC.Enabled {
+		rootLog.Info("service RPC and token validation are disabled via configuration")
+	}
+
+	var dashboardHandler *handlers.DashboardHandler
+
+	if cfg.Discovery.Enabled {
+		provClient, err := prov.NewClient(
 			discovery,
-			servicerpc.ServiceRpcConfig{
-				TLSRootCA:    cfg.Server.TLS_ROOTCA,
-				InternalName: cfg.Discovery.PublicEndpoint,
-			},
-			logger.Subsystem("service-rpc"),
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
 		)
 		if err != nil {
 			database.Close()
-			return nil, fmt.Errorf("failed to create service RPC factory: %w", err)
+			return nil, fmt.Errorf("failed to create prov client: %w", err)
 		}
 
-		// Retrieve Security Client validator
-		tokenValidator, err = rpcFactory.SecurityClient()
+		secClient, err := sec.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
 		if err != nil {
 			database.Close()
-			return nil, fmt.Errorf("failed to create security auth client: %w", err)
+			return nil, fmt.Errorf("failed to create sec client: %w", err)
 		}
+		secClient.AuthEnabled = cfg.Auth.Enabled
+
+		gwClient, err := gw.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
+		if err != nil {
+			rootLog.Warn("failed to create gw client for service discovery", "error", err)
+		}
+
+		analyticsClient, err := analytics.NewClient(
+			discovery,
+			cfg.Server.TLS_ROOTCA,
+			cfg.Discovery.PublicEndpoint,
+		)
+		if err != nil {
+			rootLog.Warn("failed to create analytics client for service discovery", "error", err)
+		}
+
+		if cfg.RPC.Enabled {
+			tokenValidator = sec.NewClientAdapter(secClient)
+		}
+
+		dashboardService := services.NewDashboardService(provClient, secClient, gwClient, analyticsClient)
+		dashboardHandler = handlers.NewDashboardHandler(dashboardService)
 	} else {
-		rootLog.Info("service RPC client factory and token validation are disabled via configuration")
+		dashboardServiceFallback := services.NewDashboardService(nil, nil, nil, nil)
+		dashboardHandler = handlers.NewDashboardHandler(dashboardServiceFallback)
 	}
 
 	// 5. Assemble Fiber HTTP apps module
 	publicAuthConfig := auth.PublicAuthConfig{}
+
+	expectedAPIKey := cfg.Discovery.InstanceKey
+	if cfg.Discovery.Enabled && discovery != nil {
+		expectedAPIKey = discovery.Self().Key
+	}
+
 	privateAuthConfig := auth.InternalAPIKeyConfig{
-		ExpectedAPIKey: cfg.Discovery.InstanceKey,
+		ExpectedAPIKey: expectedAPIKey,
 	}
 
 	module, err := apphttp.NewModule(apphttp.Dependencies{
@@ -102,6 +150,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		PrivateAuthConfig: privateAuthConfig,
 		TokenValidator:    tokenValidator,
 		AuthEnabled:       cfg.Auth.Enabled,
+		DashboardHandler:  dashboardHandler,
 	})
 	if err != nil {
 		database.Close()

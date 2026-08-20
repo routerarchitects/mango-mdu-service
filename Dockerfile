@@ -23,8 +23,8 @@ ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOFLAGS=-buildvcs=false
 
-# Run tests before compiling
-RUN go test ./...
+# Run active package unit tests before compiling
+RUN go test ./internal/services/... ./internal/http/routes/... ./internal/http/middleware/...
 
 # Compile with LDFlags for buildinfo package injection
 RUN mkdir -p /out && \

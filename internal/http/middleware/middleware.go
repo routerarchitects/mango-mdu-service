@@ -1,13 +1,17 @@
 package middleware
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/requestlog"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 )
 
 // RegisterPublicCORS configures CORS policies on the public Fiber application.
@@ -17,6 +21,68 @@ func RegisterPublicCORS(app *fiber.App) {
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-API-KEY", "X-INTERNAL-NAME"},
 	}))
+}
+
+// CorrelationAndRequestID normalizes, validates, and generates request/correlation IDs.
+func CorrelationAndRequestID() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		// Read incoming request ID
+		reqID := strings.TrimSpace(c.Get("X-Request-Id"))
+		if reqID == "" {
+			reqID = strings.TrimSpace(c.Get("X-Request-ID"))
+		}
+
+		if !isValidID(reqID) {
+			// Generate a new one if missing or invalid using the common-mods algorithm
+			var b [12]byte
+			if _, err := rand.Read(b[:]); err != nil {
+				reqID = fmt.Sprintf("%d", time.Now().UnixNano())
+			} else {
+				reqID = hex.EncodeToString(b[:])
+			}
+		}
+
+		// Read incoming correlation ID
+		corrID := strings.TrimSpace(c.Get("X-Correlation-Id"))
+		if corrID == "" {
+			corrID = strings.TrimSpace(c.Get("X-Correlation-ID"))
+		}
+
+		if corrID == "" {
+			// Fall back to request ID if correlation ID is not supplied
+			corrID = reqID
+		} else if !isValidID(corrID) {
+			// Discard invalid correlation ID and fall back to request ID
+			corrID = reqID
+		}
+
+		// Standardize request headers for downstream context
+		c.Request().Header.Set("X-Request-ID", reqID)
+		c.Request().Header.Set("X-Request-Id", reqID)
+
+		c.Request().Header.Set("X-Correlation-ID", corrID)
+		c.Request().Header.Set("X-Correlation-Id", corrID)
+
+		// Standardize response headers
+		c.Response().Header.Set("X-Request-ID", reqID)
+		c.Response().Header.Set("X-Request-Id", reqID)
+		c.Response().Header.Set("X-Correlation-ID", corrID)
+		c.Response().Header.Set("X-Correlation-Id", corrID)
+
+		return c.Next()
+	}
+}
+
+func isValidID(id string) bool {
+	if len(id) == 0 || len(id) > 100 {
+		return false
+	}
+	for _, ch := range id {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == ':' || ch == '.') {
+			return false
+		}
+	}
+	return true
 }
 
 // RegisterRequestLog registers the correlation and structured request logger middleware.
@@ -35,7 +101,7 @@ func NewServiceAuth(
 	authEnabled bool,
 	publicCfg auth.PublicAuthConfig,
 	privateCfg auth.InternalAPIKeyConfig,
-	validator *owsec.SecurityClient,
+	validator auth.PublicAuthValidator,
 ) (*ServiceAuth, error) {
 	// Configure public auth handler (bypassed if AUTH_ENABLED=false)
 	var publicAuth fiber.Handler
