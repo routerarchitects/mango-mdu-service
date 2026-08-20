@@ -28,6 +28,7 @@ type Client struct {
 	httpClient   *http.Client
 	internalName string
 	BaseURL      string
+	BaseAPIKey   string
 }
 
 func NewClient(discovery *servicediscovery.Discovery, tlsRootCA string, internalName string) (*Client, error) {
@@ -63,7 +64,10 @@ func (c *Client) sendRequest(reqCtx prov.RequestContext, method, path string) (*
 	var apiKey string
 	if c.BaseURL != "" {
 		urlStr = strings.TrimSuffix(c.BaseURL, "/") + path
-		apiKey = "mock-api-key"
+		apiKey = c.BaseAPIKey
+		if apiKey == "" {
+			apiKey = "mock-api-key"
+		}
 	} else {
 		if c.discovery == nil {
 			return nil, apperror.New(apperror.CodeInternal, "service discovery is not initialized")
