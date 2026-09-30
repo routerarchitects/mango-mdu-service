@@ -5,35 +5,23 @@ info:
   description: |
     Northbound API exposed by MDU for Phase 1 workflows.
 
-    This contract defines the API consumed by northbound clients such as the MDU UI.
-    It intentionally normalizes downstream platform behavior into stable MDU-owned resources.
+    Phase 1 Core Scope:
+    - Policy Overview orchestration for Operator UI (`GET /api/v1/policies/{policyId}/overview`)
+    - Operational System APIs (`/livez`, `/system`)
 
-    Phase 1 integrations:
-    - OWSEC: authentication, token validation, and user identity/user CRUD handled directly outside MDU
-    - PROV: entities, venues, management roles, management policies, effective scope resolution, and operator-scoped subscriber listing
-
-    Phase 1 scope:
-    - session/access context, hierarchy/entity/venue wrappers, user-access orchestration, roles/policies orchestration, and operator-scoped subscriber listing only
-    - operator listing and creation are handled directly by PROV from the UI (bypassing MDU), while operator detail retrieval, updates, and deletion are orchestrated via MDU
-
-    Explicit non-goal:
-    - billing features are out-of-scope for Phase 1
+    Integrations:
+    - OWSEC: authentication, token validation, user profile lookup
+    - PROV: management policies, management roles, entities, venues
 
 servers:
   - url: /api/v1
     description: Relative API base path
 
 tags:
-  - name: Session
-  - name: Hierarchy
-  - name: Entities
-  - name: Venues
-  - name: Users
-  - name: Management Roles
-  - name: Management Policies
-  - name: Subscribers
-  - name: Operators
   - name: System
+    description: Operational diagnostics and liveness checks
+  - name: Policies
+    description: Policy overview and orchestration for operator UI
 
 security:
   - bearerAuth: []
@@ -51,7 +39,7 @@ paths:
     get:
       tags: [System]
       summary: Liveness probe
-      description: Checks if the service is running and healthy. This route is unauthenticated and accessible on the public port.
+      description: Checks if the service is running and healthy. This route is unauthenticated.
       security: []
       responses:
         '200':
@@ -60,7 +48,7 @@ paths:
   /system:
     servers:
       - url: "https://{host}:{publicPort}/api/v1"
-        description: Public HTTP API Interface (Authentication via bearerAuth, conditionally enabled/disabled via AUTH_ENABLED)
+        description: Public HTTP API Interface
         variables:
           host:
             default: localhost
@@ -69,9 +57,7 @@ paths:
     get:
       tags: [System]
       summary: Retrieve system diagnostics and metrics
-      description: |
-        Returns system status info or resource usage based on the requested command.
-        Accessible on the public port using Bearer token authentication.
+      description: Returns system status info or resource usage based on the requested command.
       security:
         - bearerAuth: []
       parameters:
@@ -97,9 +83,7 @@ paths:
     post:
       tags: [System]
       summary: Modify log levels or query diagnostics schema
-      description: |
-        Dynamically mutate runtime subsystem log levels or fetch subsystem metadata.
-        Accessible on the public port using Bearer token authentication.
+      description: Dynamically mutate runtime subsystem log levels or fetch subsystem metadata.
       security:
         - bearerAuth: []
       parameters:
@@ -138,48 +122,30 @@ paths:
         '503':
           $ref: '#/components/responses/BackendUnavailableError'
 
-  /session:
+  /policies/{policyId}/overview:
     get:
-      tags: [Session]
-      summary: Get active session and effective access context
+      tags: [Policies]
+      summary: Get Policy Overview
       description: |
-        Returns the authenticated caller and normalized effective access context.
-        Scope assignments are derived from downstream role and policy bindings.
-      operationId: getSession
+        Retrieves live usage summary, metadata, and assigned users for a specific policy.
+        Orchestrates data across OWPROV (management policies, management roles, hierarchy) and OWSEC (users).
+      operationId: getPolicyOverview
       parameters:
+        - name: policyId
+          in: path
+          required: true
+          description: UUID or system identifier of the target policy
+          schema:
+            type: string
         - $ref: '#/components/parameters/XRequestIdHeader'
         - $ref: '#/components/parameters/XCorrelationIdHeader'
       responses:
         '200':
-          description: Active session and normalized access context
+          description: Policy overview details and usage metrics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionContext'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /operators/{operatorId}:
-    get:
-      tags: [Operators]
-      summary: Retrieve operator details
-      description: Fetches the profile details for the target operator.
-      operationId: getOperator
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/OperatorIdPath'
-      responses:
-        '200':
-          description: Operator details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OperatorDetail'
+                $ref: '#/components/schemas/PolicyOverviewResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
         '401':
@@ -188,962 +154,6 @@ paths:
           $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    put:
-      tags: [Operators]
-      summary: Update operator details
-      description: Updates the target operator name, description, or registration ID.
-      operationId: updateOperator
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/OperatorIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateOperatorRequest'
-      responses:
-        '200':
-          description: Operator updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OperatorDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    delete:
-      tags: [Operators]
-      summary: Delete an operator
-      description: Deletes the target operator from the system.
-      operationId: deleteOperator
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/OperatorIdPath'
-      responses:
-        '204':
-          description: Operator deleted
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /operators/{operatorId}/subscribers:
-    get:
-      tags: [Subscribers]
-      summary: List subscribers for an operator
-      description: Returns a simple, unpaginated list of subscriber signup entries associated with the target operator for Phase 1.
-      operationId: listOperatorSubscribers
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/OperatorIdPath'
-      responses:
-        '200':
-          description: List of subscribers
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubscriberListResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-  /hierarchy/tree:
-    get:
-      tags: [Hierarchy]
-      summary: Get visible hierarchy tree
-      description: |
-        Returns the hierarchy visible to the caller.
-        Phase 1 normalizes entity and venue resources into a single northbound tree.
-      operationId: getHierarchyTree
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/ScopeEntityId'
-      responses:
-        '200':
-          description: Hierarchy tree
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HierarchyTreeResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /entities:
-    get:
-      tags: [Entities]
-      summary: List entities visible to the caller
-      description: Returns normalized entity resources filtered to the caller's effective scope.
-      operationId: listEntities
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/LimitQuery'
-        - $ref: '#/components/parameters/OffsetQuery'
-      responses:
-        '200':
-          description: Entity list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityListResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    post:
-      tags: [Entities]
-      summary: Create an entity
-      description: Creates a new Phase 1 entity resource.
-      operationId: createEntity
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateEntityRequest'
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-      responses:
-        '201':
-          description: Entity created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /entities/{entityId}:
-    get:
-      tags: [Entities]
-      summary: Get entity detail
-      operationId: getEntity
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/EntityIdPath'
-      responses:
-        '200':
-          description: Entity detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    put:
-      tags: [Entities]
-      summary: Update an entity
-      operationId: updateEntity
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/EntityIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateEntityRequest'
-      responses:
-        '200':
-          description: Entity updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    delete:
-      tags: [Entities]
-      summary: Delete an entity
-      operationId: deleteEntity
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/EntityIdPath'
-      responses:
-        '204':
-          description: Entity deleted
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /entities/{entityId}/venues:
-    get:
-      tags: [Venues]
-      summary: List venues under an entity
-      operationId: listEntityVenues
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/EntityIdPath'
-        - $ref: '#/components/parameters/LimitQuery'
-        - $ref: '#/components/parameters/OffsetQuery'
-      responses:
-        '200':
-          description: Venue list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueListResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    post:
-      tags: [Venues]
-      summary: Create venue under an entity
-      operationId: createVenue
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/EntityIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateVenueRequest'
-      responses:
-        '201':
-          description: Venue created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /venues/{venueId}:
-    get:
-      tags: [Venues]
-      summary: Get venue detail
-      operationId: getVenue
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/VenueIdPath'
-      responses:
-        '200':
-          description: Venue detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    put:
-      tags: [Venues]
-      summary: Update a venue
-      operationId: updateVenue
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/VenueIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateVenueRequest'
-      responses:
-        '200':
-          description: Venue updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueDetail'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    delete:
-      tags: [Venues]
-      summary: Delete a venue
-      operationId: deleteVenue
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/VenueIdPath'
-      responses:
-        '204':
-          description: Venue deleted
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /policies:
-    get:
-      tags: [Management Policies]
-      summary: Retrieve a list of management policies
-      operationId: getPolicies
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/LimitQuery'
-        - $ref: '#/components/parameters/OffsetQuery'
-        - $ref: '#/components/parameters/EntityQueryOptional'
-        - $ref: '#/components/parameters/VenueQueryOptional'
-      responses:
-        '200':
-          description: A list of management policies
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementPolicyListResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    post:
-      tags: [Management Policies]
-      summary: Create a new management policy
-      operationId: createPolicy
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateManagementPolicyRequest'
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-      responses:
-        '201':
-          description: Policy created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementPolicy'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /policies/{policyId}:
-    get:
-      tags: [Management Policies]
-      summary: Retrieve details of a management policy
-      operationId: getPolicy
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/PolicyIdPath'
-      responses:
-        '200':
-          description: Policy details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementPolicy'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    put:
-      tags: [Management Policies]
-      summary: Update a management policy
-      operationId: updatePolicy
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/PolicyIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateManagementPolicyRequest'
-      responses:
-        '200':
-          description: Policy updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementPolicy'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    delete:
-      tags: [Management Policies]
-      summary: Delete a management policy
-      operationId: deletePolicy
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/PolicyIdPath'
-      responses:
-        '204':
-          description: Policy deleted successfully
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /roles:
-    get:
-      tags: [Management Roles]
-      summary: Retrieve a list of management roles
-      operationId: getRoles
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/LimitQuery'
-        - $ref: '#/components/parameters/OffsetQuery'
-        - $ref: '#/components/parameters/EntityQueryOptional'
-      responses:
-        '200':
-          description: A list of management roles
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementRoleListResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    post:
-      tags: [Management Roles]
-      summary: Create a new management role
-      operationId: createRole
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateManagementRoleRequest'
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-      responses:
-        '201':
-          description: Role created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementRole'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /roles/{roleId}:
-    get:
-      tags: [Management Roles]
-      summary: Retrieve details of a management role
-      operationId: getRole
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/RoleIdPath'
-      responses:
-        '200':
-          description: Role details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementRole'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    put:
-      tags: [Management Roles]
-      summary: Update a management role
-      operationId: updateRole
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/RoleIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateManagementRoleRequest'
-      responses:
-        '200':
-          description: Role updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementRole'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    delete:
-      tags: [Management Roles]
-      summary: Delete a management role
-      operationId: deleteRole
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/RoleIdPath'
-      responses:
-        '204':
-          description: Role deleted successfully
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /users/{userId}/assignments:
-    get:
-      tags: [Users]
-      summary: Get effective scoped assignments for a user
-      description: Returns the target user's effective scoped assignments as normalized MDU resources.
-      operationId: getUserAssignments
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/UserIdPath'
-      responses:
-        '200':
-          description: User scope assignments
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAssignmentsResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    post:
-      tags: [Users]
-      summary: Assign a user to an entity or venue scope
-      description: |
-        Assigns the target user to the specified entity or venue scope with a given role.
-        
-        This endpoint implements an idempotent resolution flow when dealing with existing states:
-        1. **Create (201 Created)**: If no matching scoped role or assignment exists for the requested scope and role, MDU creates the assignment.
-        2. **Update/Resolve (201 Created)**: If a matching scoped role exists downstream for that scope and role, but the target user is not yet bound to it, MDU updates/resolves the role by adding the target user to its user list.
-        3. **No-Op/Idempotent Success (200 OK)**: If the target user is already assigned to the exact scope and role combination, the request resolves immediately with no state changes.
-        4. **Conflict (409 Conflict)**: Reserved only for true, unresolvable state conflicts (e.g. if the requested assignment cannot be safely resolved from downstream state or creates a logical contradiction).
-      operationId: assignUserToScope
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/UserIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateUserAssignmentRequest'
-      responses:
-        '200':
-          description: Requested assignment already exists and is active (no-op/idempotent success).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAssignment'
-              examples:
-                alreadyAssigned:
-                  summary: Already assigned (idempotent success)
-                  value:
-                    assignmentId: "523e4567-e89b-12d3-a456-426614174000"
-                    scopeType: "entity"
-                    scopeId: "223e4567-e89b-12d3-a456-426614174000"
-                    scopeName: "Regional Operations"
-                    role: "admin"
-                    path:
-                      - id: "223e4567-e89b-12d3-a456-426614174000"
-                        name: "Regional Operations"
-                        type: "entity"
-                    managementRoleId: "623e4567-e89b-12d3-a456-426614174000"
-                    managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-                    createdAt: "2026-06-30T12:00:00Z"
-        '201':
-          description: Assignment newly created, or existing matching role updated to newly add the user.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAssignment'
-              examples:
-                newAssignment:
-                  summary: New assignment created
-                  value:
-                    assignmentId: "523e4567-e89b-12d3-a456-426614174000"
-                    scopeType: "entity"
-                    scopeId: "223e4567-e89b-12d3-a456-426614174000"
-                    scopeName: "Regional Operations"
-                    role: "admin"
-                    path:
-                      - id: "223e4567-e89b-12d3-a456-426614174000"
-                        name: "Regional Operations"
-                        type: "entity"
-                    managementRoleId: "623e4567-e89b-12d3-a456-426614174000"
-                    managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-                    createdAt: "2026-06-30T12:00:00Z"
-                existingRoleUpdated:
-                  summary: Existing matching role updated to add user
-                  value:
-                    assignmentId: "723e4567-e89b-12d3-a456-426614174000"
-                    scopeType: "venue"
-                    scopeId: "323e4567-e89b-12d3-a456-426614174000"
-                    scopeName: "East Wing Venue"
-                    role: "installer"
-                    path:
-                      - id: "223e4567-e89b-12d3-a456-426614174000"
-                        name: "Regional Operations"
-                        type: "entity"
-                      - id: "323e4567-e89b-12d3-a456-426614174000"
-                        name: "East Wing Venue"
-                        type: "venue"
-                    managementRoleId: "823e4567-e89b-12d3-a456-426614174000"
-                    managementPolicyId: "723e4567-e89b-12d3-a456-426614174000"
-                    createdAt: "2026-06-30T12:00:00Z"
-        '400':
-          description: Invalid request parameters or body (e.g. invalid scopeType or missing required fields).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                invalidScopeType:
-                  summary: Invalid scope type value
-                  value:
-                    ErrorCode: 400
-                    ErrorDetails: "The field 'scopeType' must be either 'entity' or 'venue'."
-                    ErrorDescription: "Bad Request"
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          description: Conflict (unresolvable state conflicts).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                unresolvedConflict:
-                  summary: True state conflict
-                  value:
-                    ErrorCode: 409
-                    ErrorDetails: "Cannot safely resolve requested assignment from existing downstream state."
-                    ErrorDescription: "Conflict"
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-
-  /users/{userId}/assignments/{assignmentId}:
-    delete:
-      tags: [Users]
-      summary: Remove a user's scope assignment
-      description: Removes the scoped access binding for the target user by assignment ID.
-      operationId: deleteUserAssignment
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/UserIdPath'
-        - $ref: '#/components/parameters/AssignmentIdPath'
-      responses:
-        '204':
-          description: Assignment removed
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-          
-  /users/{userId}/access-policy:
-    get:
-      tags: [Users]
-      summary: Retrieve the access policy for a user at a given scope
-      description: Fetches the configured management policy and template role for the target user at the specified entity or venue scope.
-      operationId: getUserAccessPolicy
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/UserIdPath'
-        - $ref: '#/components/parameters/ScopeQueryRequired'
-        - $ref: '#/components/parameters/EntityIdQueryRequired'
-        - $ref: '#/components/parameters/VenueIdQuery'
-      responses:
-        '200':
-          description: Access policy details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAccessPolicy'
-        '400':
-          description: Invalid query parameters (e.g. missing entityId, or venue scope missing venueId).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                missingEntityId:
-                  summary: Missing entityId parameter
-                  value:
-                    ErrorCode: 400
-                    ErrorDetails: "The required query parameter 'entityId' is missing."
-                    ErrorDescription: "Bad Request"
-                missingVenueId:
-                  summary: Venue scope missing venueId
-                  value:
-                    ErrorCode: 400
-                    ErrorDetails: "The query parameter 'venueId' is required when scope is set to 'venue'."
-                    ErrorDescription: "Bad Request"
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '503':
-          $ref: '#/components/responses/BackendUnavailableError'
-    put:
-      tags: [Users]
-      summary: Assign or update the access policy for a user
-      description: Sets or updates the management role, policies, and resource permissions for the target user at the specified entity or venue scope.
-      operationId: updateUserAccessPolicy
-      parameters:
-        - $ref: '#/components/parameters/XRequestIdHeader'
-        - $ref: '#/components/parameters/XCorrelationIdHeader'
-        - $ref: '#/components/parameters/UserIdPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserAccessPolicy'
-      responses:
-        '200':
-          description: Access policy updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAccessPolicy'
-        '400':
-          description: Invalid payload combination (e.g. scope is entity but venueId is provided, or scope is venue but venueId is missing).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                invalidScopePayload:
-                  summary: Invalid scope payload
-                  value:
-                    ErrorCode: 400
-                    ErrorDetails: "venueId must not be provided when scope is 'entity'."
-                    ErrorDescription: "Bad Request"
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '404':
-          description: Targeted user or scoped role/policy binding cannot be resolved downstream.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-              examples:
-                bindingNotFound:
-                  summary: User or access policy bindings not found
-                  value:
-                    ErrorCode: 404
-                    ErrorDetails: "The access policy configuration for the target user at the specified scope does not exist."
-                    ErrorDescription: "Not Found"
-        '409':
-          $ref: '#/components/responses/ConflictError'
         '503':
           $ref: '#/components/responses/BackendUnavailableError'
 
@@ -1153,1081 +163,169 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: OWSEC-issued user bearer token authentication. Note that token validation is conditionally enforced on the public interface and can be bypassed for local development and testing by setting the environment variable AUTH_ENABLED=false.
 
   parameters:
     XRequestIdHeader:
       name: X-Request-Id
       in: header
       required: false
-      description: Unique tracking identifier for this specific HTTP request. If not supplied, the service will generate one.
+      description: Unique correlation identifier for request tracing
       schema:
         type: string
     XCorrelationIdHeader:
       name: X-Correlation-Id
       in: header
       required: false
-      description: Distributed transaction identifier linking requests across multiple microservices. If not supplied, the service will fall back to using X-Request-Id (or generate one) to preserve trace context.
+      description: Distributed tracing correlation identifier
       schema:
         type: string
-    EntityIdPath:
-      name: entityId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    VenueIdPath:
-      name: venueId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    UserIdPath:
-      name: userId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    OperatorIdPath:
-      name: operatorId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    ScopeEntityId:
-      name: scopeEntityId
-      in: query
-      required: false
-      description: Optional entity scope anchor for tree shaping
-      schema:
-        $ref: '#/components/schemas/Id'
-
-    EntityIdQueryRequired:
-      name: entityId
-      in: query
-      required: true
-      description: Target entity scope. Always required. If scope is venue, both entityId and venueId must be specified.
-      schema:
-        $ref: '#/components/schemas/Id'
-    VenueIdQuery:
-      name: venueId
-      in: query
-      required: false
-      description: Target venue scope. Required only when scope is venue (in which case both entityId and venueId must be specified).
-      schema:
-        $ref: '#/components/schemas/Id'
-    AssignmentIdPath:
-      name: assignmentId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    PolicyIdPath:
-      name: policyId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    RoleIdPath:
-      name: roleId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Id'
-    ScopeQueryRequired:
-      name: scope
-      in: query
-      required: true
-      description: The target access policy scope (entity or venue).
-      schema:
-        type: string
-        enum: [entity, venue]
-    LimitQuery:
-      name: limit
-      in: query
-      required: false
-      description: Maximum number of items to return.
-      schema:
-        type: integer
-        default: 20
-        minimum: 1
-        maximum: 100
-    OffsetQuery:
-      name: offset
-      in: query
-      required: false
-      description: Number of items to skip.
-      schema:
-        type: integer
-        default: 0
-        minimum: 0
-    EntityQueryOptional:
-      name: entityId
-      in: query
-      required: false
-      description: Optional entity ID filter.
-      schema:
-        $ref: '#/components/schemas/Id'
-    VenueQueryOptional:
-      name: venueId
-      in: query
-      required: false
-      description: Optional venue ID filter.
-      schema:
-        $ref: '#/components/schemas/Id'
-
-
-  responses:
-    BadRequestError:
-      description: Request validation failed
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          examples:
-            badRequestDefault:
-              summary: Validation error default
-              value:
-                ErrorCode: 400
-                ErrorDetails: "One or more request parameters are invalid."
-                ErrorDescription: "Bad Request"
-    UnauthorizedError:
-      description: Authentication failed
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          examples:
-            unauthorizedDefault:
-              summary: Unauthorized access error
-              value:
-                ErrorCode: 401
-                ErrorDetails: "Bearer token is missing, expired, or invalid."
-                ErrorDescription: "Unauthorized"
-    ForbiddenError:
-      description: Caller is not allowed to perform this action in the resolved scope
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          examples:
-            forbiddenDefault:
-              summary: Forbidden access error
-              value:
-                ErrorCode: 403
-                ErrorDetails: "You do not have permission to access resources in the resolved scope."
-                ErrorDescription: "Forbidden"
-    NotFoundError:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          examples:
-            notFoundDefault:
-              summary: Resource not found error
-              value:
-                ErrorCode: 404
-                ErrorDetails: "The requested resource could not be found."
-                ErrorDescription: "Not Found"
-    ConflictError:
-      description: Current state conflicts with the requested operation
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          examples:
-            conflictDefault:
-              summary: Conflict error default
-              value:
-                ErrorCode: 409
-                ErrorDetails: "The operation conflicts with the current state of the resource."
-                ErrorDescription: "Conflict"
-    BackendUnavailableError:
-      description: One or more required downstream services are unavailable
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          examples:
-            backendUnavailableDefault:
-              summary: Backend service unavailable
-              value:
-                ErrorCode: 503
-                ErrorDetails: "A required downstream service (e.g. PROV or OWSEC) is currently unreachable or timed out."
-                ErrorDescription: "Service Unavailable"
 
   schemas:
-    Id:
-      type: string
-      description: UUID or service-owned opaque identifier
-
-    IsoDateTime:
-      type: string
-      format: date-time
-
-    ListMetadata:
+    PolicyUsageSummary:
       type: object
-      required: [total, limit, offset]
+      required:
+        - usedByUsers
+        - scopedAssignmentsCount
+        - propertiesCount
+        - venuesCount
       properties:
-        total:
+        usedByUsers:
           type: integer
-          description: Total count of items matching the filter.
-        limit:
+          description: Total number of unique users assigned to this policy
+          example: 2
+        scopedAssignmentsCount:
           type: integer
-          description: Maximum number of items requested.
-        offset:
+          description: Total number of scoped role assignments referencing this policy
+          example: 3
+        propertiesCount:
           type: integer
-          description: Offset of the returned items.
+          description: Total number of distinct properties (entities) linked to this policy
+          example: 1
+        venuesCount:
+          type: integer
+          description: Total number of distinct venues linked to this policy
+          example: 2
 
-    HierarchyNodeType:
-      type: string
-      enum: [operator, entity, venue]
+    AssignedUserSummary:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - propertyName
+        - venueScope
+      properties:
+        id:
+          type: string
+          description: User unique identifier (UUID)
+          example: "018f3a22-1111-7000-8000-000000000001"
+        name:
+          type: string
+          description: Full display name of the user
+          example: "Default User"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        propertyId:
+          type: string
+          description: Entity identifier of the assigned property
+          example: "00000000-0000-0000-0000-000000000001"
+        propertyName:
+          type: string
+          description: Display name of the assigned property
+          example: "Sunrise Apartments"
+        venueId:
+          type: string
+          description: Venue identifier if assigned to a specific venue
+          example: "00000000-0000-0000-0000-000000000002"
+        venueScope:
+          type: string
+          description: Human-readable venue scope name or "Whole property"
+          example: "Tower A"
 
-    AssignmentScopeType:
-      type: string
-      enum: [entity, venue]
-
-    RoleKey:
-      type: string
-      enum: [root, admin, csr, installer, noc, accounting, system]
+    PolicyOverviewResponse:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - summary
+        - assignedUsers
+      properties:
+        id:
+          type: string
+          description: Policy UUID
+          example: "523e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          description: Policy name
+          example: "adfcasdfcsacs"
+        description:
+          type: string
+          description: Policy description
+          example: "Custom property admin policy"
+        status:
+          type: string
+          description: Operational status of the policy
+          example: "Active"
+        modified:
+          type: integer
+          format: int64
+          description: Unix epoch timestamp of last modification
+          example: 1727610000
+        summary:
+          $ref: '#/components/schemas/PolicyUsageSummary'
+        assignedUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedUserSummary'
 
     ApiError:
       type: object
-      required: [ErrorCode, ErrorDetails, ErrorDescription]
+      required:
+        - errorCode
+        - errorDescription
       properties:
-        ErrorCode:
+        errorCode:
           type: integer
-          description: Numeric error code (typically matching the HTTP status code or specific REST sub-code).
-        ErrorDetails:
+          example: 400
+        errorDescription:
           type: string
-          description: Detailed explanation or context of the error.
-        ErrorDescription:
+          example: "Bad Request"
+        errorDetails:
           type: string
-          description: High-level classification of the error category.
-      example:
-        ErrorCode: 400
-        ErrorDetails: "The requested field 'email' is invalid."
-        ErrorDescription: "Bad Request"
+          example: "Invalid policy identifier"
 
-    ScopePathItem:
-      type: object
-      required: [id, type, name]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        type:
-          $ref: '#/components/schemas/HierarchyNodeType'
-        name:
-          type: string
-
-    RbacDecision:
-      type: object
-      required: [allowed, mode]
-      properties:
-        allowed:
-          type: boolean
-        mode:
-          type: string
-          enum: [hidden, read_only, interactive]
-        reason:
-          type: string
-
-    EffectivePermissionSet:
-      type: object
-      properties:
-        hierarchy:
-          $ref: '#/components/schemas/RbacDecision'
-        users:
-          $ref: '#/components/schemas/RbacDecision'
-        billing:
-          $ref: '#/components/schemas/RbacDecision'
-        configurations:
-          $ref: '#/components/schemas/RbacDecision'
-        devices:
-          $ref: '#/components/schemas/RbacDecision'
-
-    UserSummary:
-      type: object
-      required: [id]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        email:
-          type: string
-          format: email
-        role:
-          $ref: '#/components/schemas/RoleKey'
-        status:
-          type: string
-        lastLoginAt:
-          allOf:
-            - $ref: '#/components/schemas/IsoDateTime'
-          nullable: true
-      example:
-        id: "123e4567-e89b-12d3-a456-426614174000"
-        name: "John Doe"
-        email: "user@example.com"
-        role: "admin"
-        status: "active"
-        lastLoginAt: "2026-06-30T12:00:00Z"
-
-    SessionAssignment:
-      type: object
-      required: [assignmentId, scopeType, scopeId, scopeName, path, role]
-      properties:
-        assignmentId:
-          $ref: '#/components/schemas/Id'
-        scopeType:
-          $ref: '#/components/schemas/AssignmentScopeType'
-        scopeId:
-          $ref: '#/components/schemas/Id'
-        scopeName:
-          type: string
-        path:
-          type: array
-          items:
-            $ref: '#/components/schemas/ScopePathItem'
-        role:
-          $ref: '#/components/schemas/RoleKey'
-        managementRoleId:
-          $ref: '#/components/schemas/Id'
-        managementPolicyId:
-          $ref: '#/components/schemas/Id'
-      example:
-        assignmentId: "523e4567-e89b-12d3-a456-426614174000"
-        scopeType: "entity"
-        scopeId: "223e4567-e89b-12d3-a456-426614174000"
-        scopeName: "Regional Operations"
-        path:
-          - id: "223e4567-e89b-12d3-a456-426614174000"
-            name: "Regional Operations"
-            type: "entity"
-        role: "admin"
-        managementRoleId: "623e4567-e89b-12d3-a456-426614174000"
-        managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-
-    SessionContext:
-      type: object
-      required: [user, assignments, permissions]
-      properties:
-        user:
-          $ref: '#/components/schemas/UserSummary'
-        activeScope:
-          allOf:
-            - $ref: '#/components/schemas/ScopePathItem'
-          nullable: true
-        assignments:
-          type: array
-          items:
-            $ref: '#/components/schemas/SessionAssignment'
-        permissions:
-          $ref: '#/components/schemas/EffectivePermissionSet'
-      example:
-        user:
-          id: "123e4567-e89b-12d3-a456-426614174000"
-          name: "John Doe"
-          email: "user@example.com"
-          role: "admin"
-          status: "active"
-          lastLoginAt: "2026-06-30T12:00:00Z"
-        activeScope:
-          id: "223e4567-e89b-12d3-a456-426614174000"
-          name: "Regional Operations"
-          type: "entity"
-        assignments:
-          - assignmentId: "523e4567-e89b-12d3-a456-426614174000"
-            scopeType: "entity"
-            scopeId: "223e4567-e89b-12d3-a456-426614174000"
-            scopeName: "Regional Operations"
-            path:
-              - id: "223e4567-e89b-12d3-a456-426614174000"
-                name: "Regional Operations"
-                type: "entity"
-            role: "admin"
-            managementRoleId: "623e4567-e89b-12d3-a456-426614174000"
-            managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-        permissions:
-          hierarchy:
-            allowed: true
-            mode: "interactive"
-          users:
-            allowed: true
-            mode: "interactive"
-          billing:
-            allowed: false
-            mode: "hidden"
-          configurations:
-            allowed: true
-            mode: "read_only"
-          devices:
-            allowed: true
-            mode: "interactive"
-
-    HierarchyNodeSummary:
-      type: object
-      properties:
-        entityCount:
-          type: integer
-        venueCount:
-          type: integer
-        userCount:
-          type: integer
-        deviceCount:
-          type: integer
-
-    HierarchyNode:
-      type: object
-      required: [id, type, name, parentId, path, selectable, hasChildren]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        type:
-          $ref: '#/components/schemas/HierarchyNodeType'
-        name:
-          type: string
-        parentId:
-          allOf:
-            - $ref: '#/components/schemas/Id'
-          nullable: true
-        path:
-          type: array
-          items:
-            $ref: '#/components/schemas/ScopePathItem'
-        selectable:
-          type: boolean
-        hasChildren:
-          type: boolean
-        children:
-          type: array
-          items:
-            $ref: '#/components/schemas/HierarchyNode'
-        summary:
-          $ref: '#/components/schemas/HierarchyNodeSummary'
-
-    HierarchyTreeResponse:
-      type: object
-      required: [roots]
-      properties:
-        roots:
-          type: array
-          items:
-            $ref: '#/components/schemas/HierarchyNode'
-
-    EntitySummary:
-      type: object
-      required: [id, name, type, path]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        parentId:
-          allOf:
-            - $ref: '#/components/schemas/Id'
-          nullable: true
-        type:
-          type: string
-          enum: [normal, subscriber]
-        path:
-          type: array
-          items:
-            $ref: '#/components/schemas/ScopePathItem'
-        venueCount:
-          type: integer
-        userCount:
-          type: integer
-        deviceCount:
-          type: integer
-
-    EntityDetail:
-      allOf:
-        - $ref: '#/components/schemas/EntitySummary'
-        - type: object
-          properties:
-            description:
-              type: string
-            operatorId:
-              $ref: '#/components/schemas/Id'
-            managementPolicyId:
-              $ref: '#/components/schemas/Id'
-            managementRoleIds:
-              type: array
-              items:
-                $ref: '#/components/schemas/Id'
-            createdAt:
-              $ref: '#/components/schemas/IsoDateTime'
-            updatedAt:
-              $ref: '#/components/schemas/IsoDateTime'
-      example:
-        id: "223e4567-e89b-12d3-a456-426614174000"
-        name: "Regional Operations"
-        parentId: "123e4567-e89b-12d3-a456-426614174000"
-        type: "normal"
-        path:
-          - id: "223e4567-e89b-12d3-a456-426614174000"
-            name: "Regional Operations"
-            type: "entity"
-        venueCount: 12
-        userCount: 5
-        deviceCount: 45
-        description: "Regional office entity"
-        operatorId: "323e4567-e89b-12d3-a456-426614174000"
-        managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-        managementRoleIds:
-          - "623e4567-e89b-12d3-a456-426614174000"
-        createdAt: "2026-06-30T12:00:00Z"
-        updatedAt: "2026-06-30T12:00:00Z"
-
-    EntityListResponse:
-      type: object
-      required: [items, metadata]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/EntitySummary'
-        metadata:
-          $ref: '#/components/schemas/ListMetadata'
-
-    CreateEntityRequest:
-      type: object
-      required: [name]
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        parentEntityId:
-          $ref: '#/components/schemas/Id'
-        type:
-          type: string
-          enum: [normal, subscriber]
-          default: normal
-
-    UpdateEntityRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-
-    VenueSummary:
-      type: object
-      required: [id, name, entityId, path]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        entityId:
-          $ref: '#/components/schemas/Id'
-        parentVenueId:
-          allOf:
-            - $ref: '#/components/schemas/Id'
-          nullable: true
-        path:
-          type: array
-          items:
-            $ref: '#/components/schemas/ScopePathItem'
-        deviceCount:
-          type: integer
-
-    VenueDetail:
-      allOf:
-        - $ref: '#/components/schemas/VenueSummary'
-        - type: object
-          properties:
-            description:
-              type: string
-            managementPolicyId:
-              $ref: '#/components/schemas/Id'
-            managementRoleIds:
-              type: array
-              items:
-                $ref: '#/components/schemas/Id'
-            createdAt:
-              $ref: '#/components/schemas/IsoDateTime'
-            updatedAt:
-              $ref: '#/components/schemas/IsoDateTime'
-      example:
-        id: "423e4567-e89b-12d3-a456-426614174000"
-        name: "Grand MDU Complex"
-        entityId: "223e4567-e89b-12d3-a456-426614174000"
-        parentVenueId: null
-        path:
-          - id: "223e4567-e89b-12d3-a456-426614174000"
-            name: "Regional Operations"
-            type: "entity"
-        deviceCount: 45
-        description: "Main residential complex venue"
-        managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-        managementRoleIds:
-          - "623e4567-e89b-12d3-a456-426614174000"
-        createdAt: "2026-06-30T12:00:00Z"
-        updatedAt: "2026-06-30T12:00:00Z"
-
-    VenueListResponse:
-      type: object
-      required: [items, metadata]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/VenueSummary'
-        metadata:
-          $ref: '#/components/schemas/ListMetadata'
-
-    CreateVenueRequest:
-      type: object
-      required: [name]
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        parentVenueId:
-          $ref: '#/components/schemas/Id'
-
-    UpdateVenueRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-
-    UserAssignment:
-      type: object
-      required: [assignmentId, scopeType, scopeId, scopeName, role, path]
-      properties:
-        assignmentId:
-          $ref: '#/components/schemas/Id'
-        scopeType:
-          $ref: '#/components/schemas/AssignmentScopeType'
-        scopeId:
-          $ref: '#/components/schemas/Id'
-        scopeName:
-          type: string
-        role:
-          $ref: '#/components/schemas/RoleKey'
-        path:
-          type: array
-          items:
-            $ref: '#/components/schemas/ScopePathItem'
-        managementRoleId:
-          $ref: '#/components/schemas/Id'
-        managementPolicyId:
-          $ref: '#/components/schemas/Id'
-        createdAt:
-          $ref: '#/components/schemas/IsoDateTime'
-      example:
-        assignmentId: "523e4567-e89b-12d3-a456-426614174000"
-        scopeType: "entity"
-        scopeId: "223e4567-e89b-12d3-a456-426614174000"
-        scopeName: "Regional Operations"
-        role: "admin"
-        path:
-          - id: "223e4567-e89b-12d3-a456-426614174000"
-            name: "Regional Operations"
-            type: "entity"
-        managementRoleId: "623e4567-e89b-12d3-a456-426614174000"
-        managementPolicyId: "523e4567-e89b-12d3-a456-426614174000"
-        createdAt: "2026-06-30T12:00:00Z"
-
-    UserAssignmentsResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserAssignment'
-
-    CreateUserAssignmentRequest:
-      type: object
-      required: [scopeType, scopeId, role]
-      properties:
-        scopeType:
-          $ref: '#/components/schemas/AssignmentScopeType'
-        scopeId:
-          $ref: '#/components/schemas/Id'
-        role:
-          $ref: '#/components/schemas/RoleKey'
-
-    EntityUserAccessPolicy:
-      type: object
-      required: [scope, entityId, roleTemplate, resourcePermissions]
-      additionalProperties: false
-      properties:
-        scope:
-          type: string
-          enum: [entity]
-          description: Scope of the access policy.
-        entityId:
-          $ref: '#/components/schemas/Id'
-        roleTemplate:
-          type: string
-          description: Role template name (e.g. Admin, Installer, etc.)
-        resourcePermissions:
-          type: array
-          items:
-            $ref: '#/components/schemas/ResourcePermission'
-      example:
-        scope: "entity"
-        entityId: "223e4567-e89b-12d3-a456-426614174000"
-        roleTemplate: "Installer"
-        resourcePermissions:
-          - resource: "inventory"
-            policies: ["READ", "MODIFY"]
-          - resource: "configuration"
-            policies: ["READ"]
-
-    VenueUserAccessPolicy:
-      type: object
-      required: [scope, entityId, venueId, roleTemplate, resourcePermissions]
-      additionalProperties: false
-      properties:
-        scope:
-          type: string
-          enum: [venue]
-          description: Scope of the access policy.
-        entityId:
-          $ref: '#/components/schemas/Id'
-        venueId:
-          $ref: '#/components/schemas/Id'
-        roleTemplate:
-          type: string
-          description: Role template name (e.g. Admin, Installer, etc.)
-        resourcePermissions:
-          type: array
-          items:
-            $ref: '#/components/schemas/ResourcePermission'
-      example:
-        scope: "venue"
-        entityId: "223e4567-e89b-12d3-a456-426614174000"
-        venueId: "423e4567-e89b-12d3-a456-426614174000"
-        roleTemplate: "Installer"
-        resourcePermissions:
-          - resource: "inventory"
-            policies: ["READ", "MODIFY"]
-
-    UserAccessPolicy:
-      oneOf:
-        - $ref: '#/components/schemas/EntityUserAccessPolicy'
-        - $ref: '#/components/schemas/VenueUserAccessPolicy'
-
-    ResourcePermission:
-      type: object
-      required: [resource, policies]
-      properties:
-        resource:
-          type: string
-          enum: [entity, venue, operator, inventory, configuration, management policy, management role]
-        policies:
-          type: array
-          items:
-            $ref: '#/components/schemas/PolicyAccessKey'
-
-    PolicyAccessKey:
-      type: string
-      enum: [NOACCESS, READ, MODIFY, DELETE, LIST, CREATE, FULL]
-
-    OperatorDetail:
-      type: object
-      required: [id, name]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        description:
-          type: string
-        entityId:
-          $ref: '#/components/schemas/Id'
-          description: Associated entity ID
-        registrationId:
-          type: string
-        createdAt:
-          $ref: '#/components/schemas/IsoDateTime'
-        updatedAt:
-          $ref: '#/components/schemas/IsoDateTime'
-      example:
-        id: "323e4567-e89b-12d3-a456-426614174000"
-        name: "Acme Operator"
-        description: "Primary operator for regional services"
-        entityId: "223e4567-e89b-12d3-a456-426614174000"
-        registrationId: "REG-99210-A"
-        createdAt: "2026-06-30T12:00:00Z"
-        updatedAt: "2026-06-30T12:00:00Z"
-
-    OperatorSummary:
-      type: object
-      required: [name]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        description:
-          type: string
-        registrationId:
-          type: string
-
-    OperatorListResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OperatorSummary'
-
-    SubscriberListResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/SubscriberSignup'
-
-    SubscriberSignup:
-      type: object
-      required: [email, registrationId, status]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        email:
-          type: string
-          format: email
-        userId:
-          $ref: '#/components/schemas/Id'
-        operatorId:
-          $ref: '#/components/schemas/Id'
-        macAddress:
-          type: string
-        serialNumber:
-          type: string
-        status:
-          type: string
-        registrationId:
-          type: string
-        createdAt:
-          $ref: '#/components/schemas/IsoDateTime'
-      example:
-        id: "723e4567-e89b-12d3-a456-426614174000"
-        email: "subscriber@example.com"
-        userId: "823e4567-e89b-12d3-a456-426614174000"
-        operatorId: "323e4567-e89b-12d3-a456-426614174000"
-        macAddress: "00:11:22:33:44:55"
-        serialNumber: "SN-998822"
-        status: "active"
-        registrationId: "REG-99210-A"
-        createdAt: "2026-06-30T12:00:00Z"
-
-    ManagementPolicy:
-      type: object
-      required: [id, name]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        description:
-          type: string
-        entries:
-          type: array
-          items:
-            $ref: '#/components/schemas/ManagementPolicyEntry'
-        entity:
-          $ref: '#/components/schemas/Id'
-        venue:
-          $ref: '#/components/schemas/Id'
-        createdAt:
-          $ref: '#/components/schemas/IsoDateTime'
-        updatedAt:
-          $ref: '#/components/schemas/IsoDateTime'
-      example:
-        id: "523e4567-e89b-12d3-a456-426614174000"
-        name: "InstallerPolicy"
-        description: "Read/Write configuration policy for installers"
-        entries:
-          - resources: ["configuration", "inventory"]
-            access: ["READ", "MODIFY"]
-        entity: "223e4567-e89b-12d3-a456-426614174000"
-        createdAt: "2026-06-30T12:00:00Z"
-        updatedAt: "2026-06-30T12:00:00Z"
-
-    ManagementPolicyEntry:
-      type: object
-      required: [resources, access]
-      properties:
-        users:
-          type: array
-          description: |
-            List of user UUIDs bound to this policy entry. MDU acts as a stateless facade and forwards this array directly to the downstream PROV service as-is, where PROV persists it in the system of record. It is not ignored, rejected, or modified by MDU. Note: northbound clients should primarily manage user bindings using the User Assignment endpoints rather than modifying this array directly.
-          items:
-            type: string
-        resources:
-          type: array
-          items:
-            type: string
-        access:
-          type: array
-          items:
-            $ref: '#/components/schemas/PolicyAccessKey'
-
-    ManagementPolicyListResponse:
-      type: object
-      required: [items, metadata]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/ManagementPolicy'
-        metadata:
-          $ref: '#/components/schemas/ListMetadata'
-
-    ManagementRole:
-      type: object
-      required: [id, name, managementPolicy]
-      properties:
-        id:
-          $ref: '#/components/schemas/Id'
-        name:
-          type: string
-        description:
-          type: string
-        managementPolicy:
-          $ref: '#/components/schemas/Id'
-        users:
-          type: array
-          items:
-            $ref: '#/components/schemas/Id'
-        entity:
-          $ref: '#/components/schemas/Id'
-        venue:
-          $ref: '#/components/schemas/Id'
-        createdAt:
-          $ref: '#/components/schemas/IsoDateTime'
-        updatedAt:
-          $ref: '#/components/schemas/IsoDateTime'
-      example:
-        id: "623e4567-e89b-12d3-a456-426614174000"
-        name: "Installer"
-        description: "On-site installation technician role"
-        managementPolicy: "523e4567-e89b-12d3-a456-426614174000"
-        users:
-          - "123e4567-e89b-12d3-a456-426614174000"
-        entity: "223e4567-e89b-12d3-a456-426614174000"
-        createdAt: "2026-06-30T12:00:00Z"
-        updatedAt: "2026-06-30T12:00:00Z"
-
-    ManagementRoleListResponse:
-      type: object
-      required: [items, metadata]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/ManagementRole'
-        metadata:
-          $ref: '#/components/schemas/ListMetadata'
-
-    CreateOperatorRequest:
-      type: object
-      required: [name]
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        registrationId:
-          type: string
-
-    UpdateOperatorRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        registrationId:
-          type: string
-
-    CreateManagementPolicyRequest:
-      type: object
-      required: [name]
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        entries:
-          type: array
-          items:
-            $ref: '#/components/schemas/ManagementPolicyEntry'
-        entity:
-          $ref: '#/components/schemas/Id'
-        venue:
-          $ref: '#/components/schemas/Id'
-
-    UpdateManagementPolicyRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        entries:
-          type: array
-          items:
-            $ref: '#/components/schemas/ManagementPolicyEntry'
-        entity:
-          $ref: '#/components/schemas/Id'
-        venue:
-          $ref: '#/components/schemas/Id'
-
-    CreateManagementRoleRequest:
-      type: object
-      required: [name, managementPolicy]
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        managementPolicy:
-          $ref: '#/components/schemas/Id'
-        users:
-          type: array
-          items:
-            $ref: '#/components/schemas/Id'
-        entity:
-          $ref: '#/components/schemas/Id'
-        venue:
-          $ref: '#/components/schemas/Id'
-
-    UpdateManagementRoleRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        managementPolicy:
-          $ref: '#/components/schemas/Id'
-        users:
-          type: array
-          items:
-            $ref: '#/components/schemas/Id'
-        entity:
-          $ref: '#/components/schemas/Id'
-        venue:
-          $ref: '#/components/schemas/Id'
-
-
-
+  responses:
+    BadRequestError:
+      description: Invalid request parameters or malformed input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    UnauthorizedError:
+      description: Authentication missing, invalid, or expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ForbiddenError:
+      description: Insufficient permissions to access this policy
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFoundError:
+      description: Requested policy not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    BackendUnavailableError:
+      description: Downstream dependency unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'

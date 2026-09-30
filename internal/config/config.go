@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+
 	"github.com/caarlos0/env/v11"
 	subsystem "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
@@ -64,6 +66,12 @@ type Config struct {
 
 // Load parses environment variables into the Config struct.
 func Load() (*Config, error) {
+	if os.Getenv("SERVICE_VERSION") == "" {
+		_ = os.Setenv("SERVICE_VERSION", "1.0.0")
+	}
+	if os.Getenv("SERVICE_TYPE") == "" {
+		_ = os.Setenv("SERVICE_TYPE", "mango-mdu-service")
+	}
 	var c Config
 	if err := env.Parse(&c); err != nil {
 		return nil, err

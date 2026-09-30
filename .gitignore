@@ -39,3 +39,14 @@ certs/
 tmp_test/
 
 init-service.sh
+.gocache/
+owprov.yaml
+ucentralsec-openapi.deref.yaml
+
+# Draft reference docs outside phase-1 kept locally
+docs/configuration_management_architecture.md
+docs/device_management_architecture.md
+docs/operator_management_architecture.md
+docs/policy_management_architecture.md
+docs/property-overview-requirement (1).md
+docs/user_management_architecture.md

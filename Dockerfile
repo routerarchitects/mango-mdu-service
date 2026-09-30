@@ -23,7 +23,7 @@ ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOFLAGS=-buildvcs=false
 
-# Run tests before compiling
+# Run active package unit tests before compiling
 RUN go test ./...
 
 # Compile with LDFlags for buildinfo package injection

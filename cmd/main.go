@@ -14,6 +14,9 @@ import (
 )
 
 func main() {
+	_ = os.Setenv("SERVICE_VERSION", "1.0.0")
+	_ = os.Setenv("VERSION", "1.0.0")
+
 	// 1. Intercept OS interrupt and termination signals
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()

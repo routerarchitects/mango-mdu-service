@@ -19,10 +19,24 @@ type PrivateDeps struct {
 func RegisterPublic(app *fiber.App, deps PublicDeps) {
 	registerLivenessRoute(app)
 
+	// Wrap auth handler to bypass OPTIONS preflight requests for browser CORS compatibility
+	authMiddleware := func(c fiber.Ctx) error {
+		if c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
+		if deps.AuthHandler != nil {
+			return deps.AuthHandler(c)
+		}
+		return c.Next()
+	}
+
 	// Create authenticated route group
-	group := app.Group("", deps.AuthHandler)
+	group := app.Group("", authMiddleware)
 
 	// Register system diagnostics routes
+	// NOTE: The subsysteroutes.RegisterRoutes helper internally hardcodes "/api/v1/system" paths.
+	// We pass the root group ("") here to ensure the routes are mounted exactly at "/api/v1/system"
+	// (passing the apiV1 group would result in "/api/v1/api/v1/system").
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
 }
 
@@ -34,6 +48,8 @@ func RegisterPrivate(app *fiber.App, deps PrivateDeps) {
 	group := app.Group("", deps.AuthHandler)
 
 	// Register system diagnostics routes
+	// NOTE: The subsysteroutes.RegisterRoutes helper internally hardcodes "/api/v1/system" paths.
+	// We pass the root group ("") here to ensure the routes are mounted exactly at "/api/v1/system".
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
 }
 

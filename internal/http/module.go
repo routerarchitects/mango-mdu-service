@@ -13,7 +13,6 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	subsystemroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
-	"github.com/routerarchitects/ow-common-mods/servicerpc/owsec"
 )
 
 type Dependencies struct {
@@ -22,7 +21,7 @@ type Dependencies struct {
 	SubsystemConfig   subsystemroutes.Config
 	PublicAuthConfig  auth.PublicAuthConfig
 	PrivateAuthConfig auth.InternalAPIKeyConfig
-	TokenValidator    *owsec.SecurityClient
+	TokenValidator    auth.PublicAuthValidator
 	AuthEnabled       bool
 }
 
@@ -32,8 +31,8 @@ type Module struct {
 	privateApp *fiber.App
 }
 
-// NewModule initializes the HTTP apps, CORS, loggers, auth middlewares, and routes.
 func NewModule(deps Dependencies) (*Module, error) {
+
 	authMiddleware, err := middleware.NewServiceAuth(
 		deps.AuthEnabled,
 		deps.PublicAuthConfig,
@@ -47,6 +46,7 @@ func NewModule(deps Dependencies) (*Module, error) {
 	appConfig := fiber.Config{
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
+		ErrorHandler: middleware.ErrorHandler,
 	}
 
 	publicApp := fiber.New(appConfig)
@@ -54,6 +54,10 @@ func NewModule(deps Dependencies) (*Module, error) {
 
 	// Register CORS policy for external UI calls
 	middleware.RegisterPublicCORS(publicApp)
+
+	// Register request/correlation ID normalization middleware
+	publicApp.Use(middleware.CorrelationAndRequestID())
+	privateApp.Use(middleware.CorrelationAndRequestID())
 
 	// Register trace loggers
 	middleware.RegisterRequestLog(publicApp, deps.ServerLogger)
