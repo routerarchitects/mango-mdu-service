@@ -2,12 +2,14 @@ package routes
 
 import (
 	"github.com/gofiber/fiber/v3"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
 	subsysteroutes "github.com/routerarchitects/ow-common-mods/fiber/system-routes"
 )
 
 type PublicDeps struct {
-	AuthHandler fiber.Handler
-	Subsystem   subsysteroutes.Config
+	AuthHandler   fiber.Handler
+	Subsystem     subsysteroutes.Config
+	PolicyHandler *handlers.PolicyHandler
 }
 
 type PrivateDeps struct {
@@ -24,6 +26,11 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 
 	// Register system diagnostics routes
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
+
+	// Register policy overview route
+	if deps.PolicyHandler != nil {
+		group.Get("/api/v1/policy/:id/overview", deps.PolicyHandler.GetOverview)
+	}
 }
 
 // RegisterPrivate configures the private/internal HTTP router paths.

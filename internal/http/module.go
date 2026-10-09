@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/routes"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
@@ -24,6 +25,7 @@ type Dependencies struct {
 	PrivateAuthConfig auth.InternalAPIKeyConfig
 	TokenValidator    *owsec.SecurityClient
 	AuthEnabled       bool
+	PolicyHandler     *handlers.PolicyHandler
 }
 
 type Module struct {
@@ -61,8 +63,9 @@ func NewModule(deps Dependencies) (*Module, error) {
 
 	// Configure public routes
 	routes.RegisterPublic(publicApp, routes.PublicDeps{
-		AuthHandler: authMiddleware.GetPublicAuthHandler(),
-		Subsystem:   deps.SubsystemConfig,
+		AuthHandler:   authMiddleware.GetPublicAuthHandler(),
+		Subsystem:     deps.SubsystemConfig,
+		PolicyHandler: deps.PolicyHandler,
 	})
 
 	// Configure private routes

@@ -45,7 +45,7 @@ The focus of this phase is delivering the **Policy Overview API** to power the `
 ### Step 4: User & Scope Entity Enrichment
 - Resolves entity names from OWPROV (`GET /api/v1/entity`) and venue names from OWPROV (`GET /api/v1/venue`) using the authenticated downstream client.
 - Fetches all user profiles accessible to the requester from OWSEC via paginated bulk retrieval (`GET /api/v1/users`):
-  - Calls OWSEC in a pagination loop (`limit=100` or `500`, incrementing `offset`) forwarding `Authorization: Bearer <owsec-token>` and tracing headers until all accessible users are retrieved.
+  - Calls OWSEC over private endpoint (`:17001`) in a pagination loop (`limit=100` or `500`, incrementing `offset`) using dual authentication (`X-INTERNAL-NAME`, `X-API-KEY`, and `Authorization: Bearer <owsec-token>`) alongside tracing headers until all accessible users are retrieved.
   - Builds an in-memory lookup map of visible users: `map[userId]UserProfile`. This avoids an $N+1$ HTTP query problem where MDU would otherwise make hundreds of individual per-user requests for each role assignment.
 - Maps management roles to visible users:
   - Iterates over matching roles and the user IDs in `role.users[]`.
