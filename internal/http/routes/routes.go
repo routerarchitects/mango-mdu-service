@@ -15,8 +15,9 @@ type PublicDeps struct {
 }
 
 type PrivateDeps struct {
-	AuthHandler fiber.Handler
-	Subsystem   subsysteroutes.Config
+	AuthHandler   fiber.Handler
+	Subsystem     subsysteroutes.Config
+	DeviceHandler *handlers.DeviceHandler
 }
 
 // RegisterPublic configures the public HTTP router paths.
@@ -78,6 +79,11 @@ func RegisterPrivate(app *fiber.App, deps PrivateDeps) {
 
 	// Register system diagnostics routes
 	subsysteroutes.RegisterRoutes(deps.Subsystem, group)
+
+	// Register private device reboot route
+	if deps.DeviceHandler != nil {
+		group.Post("/api/v1/devices/:serial/reboot", deps.DeviceHandler.RebootDevice)
+	}
 }
 
 func registerLivenessRoute(app *fiber.App) {

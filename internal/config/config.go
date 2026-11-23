@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -34,7 +35,10 @@ type KafkaConfig struct {
 }
 
 type DiscoveryConfig struct {
-	Enabled bool `env:"DISCOVERY_ENABLED" envDefault:"true"`
+	Enabled                 bool   `env:"DISCOVERY_ENABLED" envDefault:"true"`
+	InternalAPIKey          string `env:"INTERNAL_API_KEY"`
+	PublicEndpointOverride  string `env:"PUBLIC_ENDPOINT"`
+	PrivateEndpointOverride string `env:"PRIVATE_ENDPOINT"`
 	servicediscovery.Config
 }
 
@@ -63,6 +67,33 @@ type Config struct {
 	Auth      AuthConfig
 	Logger    LoggerConfig
 	Subsystem SubsystemConfig
+}
+
+// GetAPISecret returns the configured internal API secret, preferring INTERNAL_API_KEY if set,
+// then falling back to SYSTEM_INSTANCE_KEY.
+func (c *Config) GetAPISecret() string {
+	if s := strings.TrimSpace(c.Discovery.InternalAPIKey); s != "" {
+		return s
+	}
+	return strings.TrimSpace(c.Discovery.InstanceKey)
+}
+
+// GetPublicEndpoint returns the public endpoint URL, preferring PUBLIC_ENDPOINT if set,
+// then falling back to SYSTEM_URI_PUBLIC.
+func (c *Config) GetPublicEndpoint() string {
+	if s := strings.TrimSpace(c.Discovery.PublicEndpointOverride); s != "" {
+		return s
+	}
+	return strings.TrimSpace(c.Discovery.PublicEndpoint)
+}
+
+// GetPrivateEndpoint returns the private endpoint URL, preferring PRIVATE_ENDPOINT if set,
+// then falling back to SYSTEM_URI_PRIVATE.
+func (c *Config) GetPrivateEndpoint() string {
+	if s := strings.TrimSpace(c.Discovery.PrivateEndpointOverride); s != "" {
+		return s
+	}
+	return strings.TrimSpace(c.Discovery.PrivateEndpoint)
 }
 
 // Load parses environment variables into the Config struct.

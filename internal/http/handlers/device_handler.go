@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/routerarchitects/mango-mdu-service/internal/models"
@@ -305,6 +306,74 @@ func (h *DeviceHandler) ExecuteDeviceCommand(c fiber.Ctx) error {
 
 	body := c.Body()
 	data, err := h.svc.ExecuteDeviceCommand(c.Context(), serial, command, body, token, reqID, corrID)
+	if err != nil {
+		var apiErr models.ApiError
+		if errors.As(err, &apiErr) {
+			return c.Status(apiErr.ErrorCode).JSON(apiErr)
+		}
+		return c.Status(http.StatusInternalServerError).JSON(models.NewApiError(
+			http.StatusInternalServerError, "Internal Server Error", err.Error(),
+		))
+	}
+
+	c.Set("Content-Type", "application/json")
+	return c.Status(http.StatusOK).Send(data)
+}
+
+// RebootDevice handles POST /api/v1/devices/:serial/reboot.
+func (h *DeviceHandler) RebootDevice(c fiber.Ctx) error {
+	token := strings.TrimSpace(c.Get("Authorization"))
+	reqID := c.Get("X-Request-Id")
+	corrID := c.Get("X-Correlation-Id")
+	serial := c.Params("serial")
+
+	if token == "" {
+		return c.Status(http.StatusUnauthorized).JSON(models.NewApiError(
+			http.StatusUnauthorized, "Unauthorized", "Authorization header is required",
+		))
+	}
+	parts := strings.Fields(token)
+	if len(parts) < 2 || !strings.EqualFold(parts[0], "bearer") || strings.TrimSpace(parts[1]) == "" {
+		return c.Status(http.StatusUnauthorized).JSON(models.NewApiError(
+			http.StatusUnauthorized, "Unauthorized", "Authorization header must be a Bearer token",
+		))
+	}
+
+	normSerial := models.NormalizeSerial(serial)
+	if normSerial == "" {
+		return c.Status(http.StatusBadRequest).JSON(models.NewApiError(
+			http.StatusBadRequest, "Bad Request", "serial number is required",
+		))
+	}
+
+	body := c.Body()
+	if len(bytes.TrimSpace(body)) == 0 {
+		return c.Status(http.StatusBadRequest).JSON(models.NewApiError(
+			http.StatusBadRequest, "Bad Request", "Request body is required",
+		))
+	}
+
+	var req models.DeviceRebootRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(models.NewApiError(
+			http.StatusBadRequest, "Bad Request", "Invalid JSON request body",
+		))
+	}
+
+	normBodySerial := models.NormalizeSerial(req.SerialNumber)
+	if normBodySerial == "" || normBodySerial != normSerial {
+		return c.Status(http.StatusBadRequest).JSON(models.NewApiError(
+			http.StatusBadRequest, "Bad Request", "serialNumber in body does not match route parameter",
+		))
+	}
+
+	if req.When != nil && *req.When < 0 {
+		return c.Status(http.StatusBadRequest).JSON(models.NewApiError(
+			http.StatusBadRequest, "Bad Request", "invalid 'when' value; must be non-negative",
+		))
+	}
+
+	data, err := h.svc.ExecuteDeviceCommand(c.Context(), serial, "reboot", body, token, reqID, corrID)
 	if err != nil {
 		var apiErr models.ApiError
 		if errors.As(err, &apiErr) {

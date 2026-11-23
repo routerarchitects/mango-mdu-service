@@ -36,6 +36,7 @@ func NewServiceAuth(
 	publicCfg auth.PublicAuthConfig,
 	privateCfg auth.InternalAPIKeyConfig,
 	validator *owsec.SecurityClient,
+	derivedCfg ...DerivedInternalAPIKeyConfig,
 ) (*ServiceAuth, error) {
 	// Configure public auth handler (bypassed if AUTH_ENABLED=false)
 	var publicAuth fiber.Handler
@@ -55,7 +56,13 @@ func NewServiceAuth(
 	}
 
 	// Configure private auth handler (always enforced for security)
-	privateAuth, err := auth.RequireInternalAPIKey(privateCfg)
+	var privateAuth fiber.Handler
+	var err error
+	if len(derivedCfg) > 0 && (derivedCfg[0].ConfiguredSecret != "" || derivedCfg[0].DiscoveryKey != "") {
+		privateAuth, err = RequireDerivedInternalAPIKey(derivedCfg[0])
+	} else {
+		privateAuth, err = auth.RequireInternalAPIKey(privateCfg)
+	}
 	if err != nil {
 		return nil, err
 	}

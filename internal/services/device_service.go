@@ -64,10 +64,7 @@ func NewDeviceService(provClient owprov.Client, gwClient owgw.Client, logger ...
 }
 
 func normalizeSerial(s string) string {
-	s = strings.ToLower(s)
-	s = strings.ReplaceAll(s, ":", "")
-	s = strings.ReplaceAll(s, "-", "")
-	return strings.TrimSpace(s)
+	return models.NormalizeSerial(s)
 }
 
 func lookupFold(values map[string]any, name string) (any, bool) {

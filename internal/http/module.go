@@ -23,6 +23,7 @@ type Dependencies struct {
 	SubsystemConfig     subsystemroutes.Config
 	PublicAuthConfig    auth.PublicAuthConfig
 	PrivateAuthConfig   auth.InternalAPIKeyConfig
+	DerivedAuthConfig   middleware.DerivedInternalAPIKeyConfig
 	TokenValidator      *owsec.SecurityClient
 	AuthEnabled         bool
 	PolicyHandler       *handlers.PolicyHandler
@@ -43,6 +44,7 @@ func NewModule(deps Dependencies) (*Module, error) {
 		deps.PublicAuthConfig,
 		deps.PrivateAuthConfig,
 		deps.TokenValidator,
+		deps.DerivedAuthConfig,
 	)
 	if err != nil {
 		return nil, err
@@ -77,8 +79,9 @@ func NewModule(deps Dependencies) (*Module, error) {
 
 	// Configure private routes
 	routes.RegisterPrivate(privateApp, routes.PrivateDeps{
-		AuthHandler: authMiddleware.GetPrivateAuthHandler(),
-		Subsystem:   deps.SubsystemConfig,
+		AuthHandler:   authMiddleware.GetPrivateAuthHandler(),
+		Subsystem:     deps.SubsystemConfig,
+		DeviceHandler: deps.DeviceHandler,
 	})
 
 	return &Module{
@@ -86,6 +89,16 @@ func NewModule(deps Dependencies) (*Module, error) {
 		publicApp:  publicApp,
 		privateApp: privateApp,
 	}, nil
+}
+
+// PublicApp returns the public Fiber application instance.
+func (m *Module) PublicApp() *fiber.App {
+	return m.publicApp
+}
+
+// PrivateApp returns the private Fiber application instance.
+func (m *Module) PrivateApp() *fiber.App {
+	return m.privateApp
 }
 
 // Start launches the public and private HTTP listener servers in the background.
