@@ -57,15 +57,15 @@ func (m *mockGWClient) ExecuteDeviceCommand(ctx context.Context, serial, command
 }
 
 type testHarness struct {
-	publicApp    *fiber.App
-	privateApp   *fiber.App
-	publicURL    string
-	secret       string
-	derivedKey   string
-	mockProv     *mockProvClient
-	mockGW       *mockGWClient
-	deviceSvc    services.DeviceService
-	logBuf       *bytes.Buffer
+	publicApp  *fiber.App
+	privateApp *fiber.App
+	publicURL  string
+	secret     string
+	derivedKey string
+	mockProv   *mockProvClient
+	mockGW     *mockGWClient
+	deviceSvc  services.DeviceService
+	logBuf     *bytes.Buffer
 }
 
 func newTestHarness(t *testing.T, secret, publicURL string) *testHarness {
