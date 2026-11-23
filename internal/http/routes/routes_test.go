@@ -121,8 +121,9 @@ func TestRouteVisibility(t *testing.T) {
 	// 2. Setup Private App
 	privateApp := fiber.New()
 	privateDeps := routes.PrivateDeps{
-		AuthHandler: func(c fiber.Ctx) error { return c.Next() },
-		Subsystem:   subsysteroutes.Config{},
+		AuthHandler:   func(c fiber.Ctx) error { return c.Next() },
+		Subsystem:     subsysteroutes.Config{},
+		DeviceHandler: deviceHdlr,
 	}
 	routes.RegisterPrivate(privateApp, privateDeps)
 
@@ -186,16 +187,36 @@ func TestRouteVisibility(t *testing.T) {
 		t.Errorf("expected command-record deletion route to remain unregistered")
 	}
 
-	// Check if private app has system route registered
+	// Check if private app has system route and private reboot route registered
 	hasPrivateSystemRoute := false
+	hasPrivateRebootRoute := false
+	hasPrivateDevicesRoute := false
+	hasPrivateGenericCommandRoute := false
 	for _, route := range privateApp.GetRoutes() {
 		if route.Path == "/api/v1/system" {
 			hasPrivateSystemRoute = true
-			break
+		}
+		if route.Method == http.MethodPost && route.Path == "/api/v1/devices/:serial/reboot" {
+			hasPrivateRebootRoute = true
+		}
+		if route.Path == "/api/v1/devices" {
+			hasPrivateDevicesRoute = true
+		}
+		if route.Path == "/api/v1/devices/:serial/:command" {
+			hasPrivateGenericCommandRoute = true
 		}
 	}
 	if !hasPrivateSystemRoute {
 		t.Errorf("expected private app to register /api/v1/system route, but it did not")
+	}
+	if !hasPrivateRebootRoute {
+		t.Errorf("expected private app to register /api/v1/devices/:serial/reboot route, but it did not")
+	}
+	if hasPrivateDevicesRoute {
+		t.Errorf("expected private app NOT to register /api/v1/devices route")
+	}
+	if hasPrivateGenericCommandRoute {
+		t.Errorf("expected private app NOT to register /api/v1/devices/:serial/:command wildcard route")
 	}
 }
 

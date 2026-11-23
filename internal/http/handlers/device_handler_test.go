@@ -27,6 +27,7 @@ type mockDeviceService struct {
 	getDeviceCapabilitiesFn  func(ctx context.Context, serial, token, reqID, corrID string) (json.RawMessage, error)
 	applyProvisionedConfigFn func(ctx context.Context, serial, token, reqID, corrID string) (json.RawMessage, error)
 	pushDirectConfigFn       func(ctx context.Context, serial string, req models.DirectDeviceConfigurationRequest, token, reqID, corrID string) (json.RawMessage, error)
+	executeDeviceCommandFn   func(ctx context.Context, serial, command string, body []byte, token, reqID, corrID string) (json.RawMessage, error)
 	deleteDeviceFn           func(ctx context.Context, serial, token, reqID, corrID string) error
 	getBlacklistFn           func(ctx context.Context, token, reqID, corrID string) ([]models.BlacklistDevice, error)
 	addBlacklistFn           func(ctx context.Context, serial, reason string, token, reqID, corrID string) (json.RawMessage, error)
@@ -112,6 +113,9 @@ func (m *mockDeviceService) PushDirectDeviceConfiguration(ctx context.Context, s
 }
 
 func (m *mockDeviceService) ExecuteDeviceCommand(ctx context.Context, serial, command string, body []byte, token, reqID, corrID string) (json.RawMessage, error) {
+	if m.executeDeviceCommandFn != nil {
+		return m.executeDeviceCommandFn(ctx, serial, command, body, token, reqID, corrID)
+	}
 	return json.RawMessage(`{"result":"ok"}`), nil
 }
 
@@ -181,6 +185,7 @@ func setupDeviceTestApp(svc *mockDeviceService) *fiber.App {
 	app.Get("/api/v1/devices/:serial", handler.GetDevice)
 	app.Put("/api/v1/devices/:serial", handler.UpdateDevice)
 	app.Delete("/api/v1/devices/:serial", handler.DeleteDevice)
+	app.Post("/api/v1/devices/:serial/reboot", handler.RebootDevice)
 	app.Post("/api/v1/devices/:serial/:command", handler.ExecuteDeviceCommand)
 	app.Post("/api/v1/authorization/deviceCommand", handler.AuthorizeDeviceCommand)
 	return app
@@ -697,5 +702,132 @@ func TestDeviceHandler_AuthorizeDeviceCommand_MissingAuth(t *testing.T) {
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected status 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeviceHandler_RebootDevice_MissingAuth(t *testing.T) {
+	svc := &mockDeviceService{}
+	app := setupDeviceTestApp(svc)
+
+	body := strings.NewReader(`{"serialNumber":"dc62796520cd","when":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dc62796520cd/reboot", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeviceHandler_RebootDevice_InvalidBearer(t *testing.T) {
+	svc := &mockDeviceService{}
+	app := setupDeviceTestApp(svc)
+
+	body := strings.NewReader(`{"serialNumber":"dc62796520cd","when":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dc62796520cd/reboot", body)
+	req.Header.Set("Authorization", "Basic 12345")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeviceHandler_RebootDevice_EmptyBody(t *testing.T) {
+	svc := &mockDeviceService{}
+	app := setupDeviceTestApp(svc)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dc62796520cd/reboot", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected status 400 for empty body, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeviceHandler_RebootDevice_MismatchedSerial(t *testing.T) {
+	svc := &mockDeviceService{}
+	app := setupDeviceTestApp(svc)
+
+	body := strings.NewReader(`{"serialNumber":"other-serial","when":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dc62796520cd/reboot", body)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected status 400 for mismatched serial, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeviceHandler_RebootDevice_NegativeWhen(t *testing.T) {
+	svc := &mockDeviceService{}
+	app := setupDeviceTestApp(svc)
+
+	body := strings.NewReader(`{"serialNumber":"dc62796520cd","when":-5}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dc62796520cd/reboot", body)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected status 400 for negative when, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeviceHandler_RebootDevice_Success(t *testing.T) {
+	called := false
+	svc := &mockDeviceService{
+		executeDeviceCommandFn: func(ctx context.Context, serial, command string, body []byte, token, reqID, corrID string) (json.RawMessage, error) {
+			called = true
+			if serial != "dc62796520cd" || command != "reboot" {
+				t.Errorf("unexpected serial=%s or command=%s", serial, command)
+			}
+			if token != "Bearer valid-token" {
+				t.Errorf("unexpected token: %s", token)
+			}
+			return json.RawMessage(`{"UUID":"cmd-1","serialNumber":"dc62796520cd","status":"completed","errorCode":0}`), nil
+		},
+	}
+	app := setupDeviceTestApp(svc)
+
+	body := strings.NewReader(`{"serialNumber":"dc62796520cd","when":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dc62796520cd/reboot", body)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+	if !called {
+		t.Error("expected executeDeviceCommandFn to be called")
 	}
 }

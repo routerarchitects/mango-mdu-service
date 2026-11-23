@@ -18,6 +18,7 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/owsec"
 	apphttp "github.com/routerarchitects/mango-mdu-service/internal/http"
 	"github.com/routerarchitects/mango-mdu-service/internal/http/handlers"
+	"github.com/routerarchitects/mango-mdu-service/internal/http/middleware"
 	"github.com/routerarchitects/mango-mdu-service/internal/services"
 	"github.com/routerarchitects/ow-common-mods/fiber/middleware/auth"
 	"github.com/routerarchitects/ow-common-mods/servicediscovery"
@@ -59,6 +60,15 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	}
 
 	// 3. Initialize Service Discovery using common mods (conditional)
+	configuredSecret := cfg.GetAPISecret()
+	publicEndpoint := cfg.GetPublicEndpoint()
+	derivedKey := middleware.DeriveKey(publicEndpoint, configuredSecret)
+
+	// Advertise the SHA-256 derived key in service discovery rather than the plaintext secret
+	if derivedKey != "" {
+		cfg.Discovery.InstanceKey = derivedKey
+	}
+
 	var discovery *servicediscovery.Discovery
 	if cfg.Discovery.Enabled {
 		discovery, err = servicediscovery.New(
@@ -119,7 +129,10 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	}
 
 	// 6. Initialize downstream gateway clients with dynamic discovery
-	instanceKey := cfg.Discovery.InstanceKey
+	instanceKey := derivedKey
+	if instanceKey == "" {
+		instanceKey = configuredSecret
+	}
 	if instanceKey == "" && discovery != nil {
 		instanceKey = discovery.Self().Key
 	}
@@ -201,6 +214,11 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 	privateAuthConfig := auth.InternalAPIKeyConfig{
 		ExpectedAPIKey: instanceKey,
 	}
+	derivedAuthConfig := middleware.DerivedInternalAPIKeyConfig{
+		PublicEndpoint:   publicEndpoint,
+		ConfiguredSecret: configuredSecret,
+		DiscoveryKey:     derivedKey,
+	}
 
 	module, err := apphttp.NewModule(apphttp.Dependencies{
 		ServerLogger:        logger.Subsystem("server"),
@@ -208,6 +226,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		SubsystemConfig:     cfg.Subsystem.Config,
 		PublicAuthConfig:    publicAuthConfig,
 		PrivateAuthConfig:   privateAuthConfig,
+		DerivedAuthConfig:   derivedAuthConfig,
 		TokenValidator:      tokenValidator,
 		AuthEnabled:         cfg.Auth.Enabled,
 		PolicyHandler:       policyHandler,

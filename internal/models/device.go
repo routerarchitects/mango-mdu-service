@@ -1,5 +1,22 @@
 package models
 
+import "strings"
+
+// NormalizeSerial normalizes a device serial number by trimming whitespace,
+// converting to lower case, and stripping colon/hyphen separators.
+func NormalizeSerial(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, ":", "")
+	s = strings.ReplaceAll(s, "-", "")
+	return strings.TrimSpace(s)
+}
+
+// DeviceRebootRequest represents the payload for POST /api/v1/devices/:serial/reboot.
+type DeviceRebootRequest struct {
+	SerialNumber string `json:"serialNumber"`
+	When         *int64 `json:"when,omitempty"`
+}
+
 // ExtendedEntity represents the nested entity metadata in an inventory tag.
 type ExtendedEntity struct {
 	ID          string `json:"id"`
