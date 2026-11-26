@@ -34,6 +34,8 @@ type Client interface {
 	GetRolesByPolicy(ctx context.Context, policyID, token, reqID, corrID string) ([]models.ManagementRole, error)
 	GetEntities(ctx context.Context, token, reqID, corrID string) ([]models.Entity, error)
 	GetVenues(ctx context.Context, token, reqID, corrID string) ([]models.Venue, error)
+	GetVenue(ctx context.Context, id, token, reqID, corrID string) (*models.VenueDetails, error)
+	UpdateVenue(ctx context.Context, id string, body []byte, token, reqID, corrID string) error
 	GetInventory(ctx context.Context, token, reqID, corrID string, limit, offset int, unassigned bool) ([]models.InventoryTag, error)
 	GetInventoryCount(ctx context.Context, token, reqID, corrID string, unassigned bool) (int, error)
 	GetInventorySerials(ctx context.Context, token, reqID, corrID string) ([]string, error)
@@ -65,7 +67,7 @@ type Config struct {
 }
 
 // NewClient creates a new OWPROV client instance.
-func NewClient(cfg Config) Client {
+func NewClient(cfg Config) *client {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = 60 * time.Second

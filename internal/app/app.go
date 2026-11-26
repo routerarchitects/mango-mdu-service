@@ -13,6 +13,7 @@ import (
 	"github.com/routerarchitects/mango-mdu-service/internal/config"
 	"github.com/routerarchitects/mango-mdu-service/internal/db"
 	"github.com/routerarchitects/mango-mdu-service/internal/events"
+	"github.com/routerarchitects/mango-mdu-service/internal/gateway/owanalytics"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/owgw"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/owprov"
 	"github.com/routerarchitects/mango-mdu-service/internal/gateway/owsec"
@@ -182,11 +183,28 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		Logger:    rootLog,
 	})
 
+	owanalyticsClient := owanalytics.NewClient(owanalytics.Config{
+		URLResolver: func() string {
+			if discovery != nil {
+				if inst := discovery.Store().GetServiceInstances("owanalytics"); inst != nil {
+					return inst.PrivateEndPoint
+				}
+			}
+			return ""
+		},
+		Timeout:   60 * time.Second,
+		TLSConfig: tlsConfig,
+		Logger:    rootLog,
+	})
+
 	policyService := services.NewPolicyService(owprovClient, owsecClient)
 	policyHandler := handlers.NewPolicyHandler(policyService, rootLog)
 
 	deviceService := services.NewDeviceService(owprovClient, owgwClient, rootLog)
 	deviceHandler := handlers.NewDeviceHandler(deviceService, rootLog)
+
+	propertyService := services.NewPropertyServiceWithAnalytics(owprovClient, owgwClient, owanalyticsClient, rootLog)
+	propertyHandler := handlers.NewPropertyHandler(propertyService, rootLog)
 
 	// 7. Initialize Realtime Event Hub and Kafka Consumer
 	hub := events.NewHub(owprovClient, logger.Subsystem("event-hub"))
@@ -195,6 +213,17 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		deviceEventsHandler.SetWriteTimeout(cfg.Server.WSWriteTimeout)
 	}
 	kafkaConsumer := events.NewKafkaConsumer(cfg.Kafka.Config, hub, logger.Subsystem("kafka-events"))
+	kafkaConsumer.AddCallback(func(event *events.DeviceEvent) {
+		if event == nil {
+			return
+		}
+		var sanity *float64
+		if event.Sanity != nil {
+			s := float64(*event.Sanity)
+			sanity = &s
+		}
+		propertyService.UpdateDeviceStatus(event.Type, event.SerialNumber, event.Connected, sanity, event.ConnectionIP)
+	})
 
 	// 8. Assemble Fiber HTTP apps module
 	publicAuthConfig := auth.PublicAuthConfig{}
@@ -211,6 +240,7 @@ func New(ctx context.Context, cfg *config.Config, rootLog *slog.Logger) (*App, e
 		TokenValidator:      tokenValidator,
 		AuthEnabled:         cfg.Auth.Enabled,
 		PolicyHandler:       policyHandler,
+		PropertyHandler:     propertyHandler,
 		DeviceHandler:       deviceHandler,
 		DeviceEventsHandler: deviceEventsHandler,
 	})

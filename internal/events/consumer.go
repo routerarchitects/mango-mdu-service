@@ -16,18 +16,22 @@ type ConsumerInterface interface {
 	Close() error
 }
 
+// DeviceEventCallback is invoked whenever a normalized device event is processed from Kafka.
+type DeviceEventCallback func(event *DeviceEvent)
+
 // KafkaEventConsumer consumes device events from Kafka and broadcasts them via Hub.
 type KafkaEventConsumer struct {
-	cfg      kafka.Config
-	hub      *Hub
-	consumer ConsumerInterface
-	topics   []string
-	logger   *slog.Logger
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	mu       sync.Mutex
-	started  bool
+	cfg       kafka.Config
+	hub       *Hub
+	consumer  ConsumerInterface
+	topics    []string
+	logger    *slog.Logger
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	mu        sync.Mutex
+	started   bool
+	callbacks []DeviceEventCallback
 }
 
 // NewKafkaConsumer creates a new KafkaEventConsumer instance.
@@ -51,6 +55,16 @@ func (kc *KafkaEventConsumer) SetConsumer(c ConsumerInterface) {
 	kc.mu.Lock()
 	defer kc.mu.Unlock()
 	kc.consumer = c
+}
+
+// AddCallback registers a listener to be called whenever a device event is processed.
+func (kc *KafkaEventConsumer) AddCallback(cb DeviceEventCallback) {
+	if cb == nil {
+		return
+	}
+	kc.mu.Lock()
+	defer kc.mu.Unlock()
+	kc.callbacks = append(kc.callbacks, cb)
 }
 
 // Start launches the Kafka consumer subscription loop in the background.
@@ -145,6 +159,12 @@ func (kc *KafkaEventConsumer) ProcessMessage(topic string, key, value []byte) er
 	}
 
 	delivered := kc.hub.Broadcast(event)
+	kc.mu.Lock()
+	cbs := append([]DeviceEventCallback(nil), kc.callbacks...)
+	kc.mu.Unlock()
+	for _, cb := range cbs {
+		cb(event)
+	}
 	kc.logger.Debug("processed kafka device event",
 		"topic", topic,
 		"serial", event.SerialNumber,

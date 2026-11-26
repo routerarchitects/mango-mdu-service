@@ -26,6 +26,7 @@ type Dependencies struct {
 	TokenValidator      *owsec.SecurityClient
 	AuthEnabled         bool
 	PolicyHandler       *handlers.PolicyHandler
+	PropertyHandler     *handlers.PropertyHandler
 	DeviceHandler       *handlers.DeviceHandler
 	DeviceEventsHandler *handlers.DeviceEventsHandler
 }
@@ -71,6 +72,7 @@ func NewModule(deps Dependencies) (*Module, error) {
 		AuthHandler:         authMiddleware.GetPublicAuthHandler(),
 		Subsystem:           deps.SubsystemConfig,
 		PolicyHandler:       deps.PolicyHandler,
+		PropertyHandler:     deps.PropertyHandler,
 		DeviceHandler:       deps.DeviceHandler,
 		DeviceEventsHandler: deps.DeviceEventsHandler,
 	})

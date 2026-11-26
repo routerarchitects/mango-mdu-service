@@ -10,6 +10,7 @@ type PublicDeps struct {
 	AuthHandler         fiber.Handler
 	Subsystem           subsysteroutes.Config
 	PolicyHandler       *handlers.PolicyHandler
+	PropertyHandler     *handlers.PropertyHandler
 	DeviceHandler       *handlers.DeviceHandler
 	DeviceEventsHandler *handlers.DeviceEventsHandler
 }
@@ -38,6 +39,21 @@ func RegisterPublic(app *fiber.App, deps PublicDeps) {
 	// Register policy overview route
 	if deps.PolicyHandler != nil {
 		group.Get("/api/v1/policy/:id/overview", deps.PolicyHandler.GetOverview)
+	}
+
+	if deps.PropertyHandler != nil {
+		group.Get("/api/v1/properties/tree", deps.PropertyHandler.GetTree)
+		group.Get("/api/v1/properties/map", deps.PropertyHandler.GetMap)
+		group.Get("/api/v1/properties/portfolio", deps.PropertyHandler.GetPortfolio)
+		group.Get("/api/v1/properties/:id/overview", deps.PropertyHandler.GetPropertyOverview)
+		group.Get("/api/v1/properties/:id/devices", deps.PropertyHandler.GetPropertyDevices)
+		group.Get("/api/v1/venues/:id/overview", deps.PropertyHandler.GetVenueOverview)
+		group.Get("/api/v1/venues/:id/devices", deps.PropertyHandler.GetVenueDevices)
+		group.Get("/api/v1/venues/:id/monitoring", deps.PropertyHandler.GetVenueMonitoring)
+		group.Post("/api/v1/venues/:id/monitoring", deps.PropertyHandler.StartVenueMonitoring)
+		group.Delete("/api/v1/venues/:id/monitoring", deps.PropertyHandler.StopVenueMonitoring)
+		group.Get("/api/v1/venues/:id/monitoring/clients", deps.PropertyHandler.GetVenueMonitoringClients)
+		group.Get("/api/v1/venues/:id/monitoring/clients/:client", deps.PropertyHandler.GetVenueClientLifecycle)
 	}
 
 	// Register device routes

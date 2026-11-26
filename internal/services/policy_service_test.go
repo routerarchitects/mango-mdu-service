@@ -52,6 +52,14 @@ func (m *mockProvClient) GetVenues(ctx context.Context, token, reqID, corrID str
 	return nil, nil
 }
 
+func (m *mockProvClient) GetVenue(ctx context.Context, id, token, reqID, corrID string) (*models.VenueDetails, error) {
+	return nil, nil
+}
+
+func (m *mockProvClient) UpdateVenue(ctx context.Context, id string, body []byte, token, reqID, corrID string) error {
+	return nil
+}
+
 func (m *mockProvClient) GetInventory(ctx context.Context, token, reqID, corrID string, limit, offset int, unassigned bool) ([]models.InventoryTag, error) {
 	if m.getInventoryFn != nil {
 		return m.getInventoryFn(ctx, token, reqID, corrID, limit, offset, unassigned)

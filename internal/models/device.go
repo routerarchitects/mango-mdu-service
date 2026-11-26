@@ -39,6 +39,7 @@ type InventoryExtendedInfo struct {
 
 // InventoryTag represents a device inventory tag in OWPROV.
 type InventoryTag struct {
+	ID                  string                 `json:"id,omitempty"`
 	SerialNumber        string                 `json:"serialNumber"`
 	Name                string                 `json:"name,omitempty"`
 	Description         string                 `json:"description,omitempty"`

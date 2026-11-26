@@ -58,6 +58,8 @@ func TestKafkaEventConsumer_ProcessMessage_BroadcastsToHub(t *testing.T) {
 	defer hub.UnregisterSession(session.ID)
 
 	kc := events.NewKafkaConsumer(kafka.Config{}, hub, nil)
+	callbackEvents := make(chan *events.DeviceEvent, 1)
+	kc.AddCallback(func(event *events.DeviceEvent) { callbackEvents <- event })
 
 	payload := `{
 		"system": {"id": 1, "host": "owgw"},
@@ -87,6 +89,15 @@ func TestKafkaEventConsumer_ProcessMessage_BroadcastsToHub(t *testing.T) {
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Errorf("timed out waiting for event on session channel")
+	}
+
+	select {
+	case event := <-callbackEvents:
+		if event.SerialNumber != "testdev1" || event.Type != "connection" {
+			t.Fatalf("callback received unexpected event: %+v", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for event callback")
 	}
 }
 

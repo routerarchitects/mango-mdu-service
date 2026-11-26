@@ -29,6 +29,12 @@ func (m *mockProvClientForHub) GetEntities(ctx context.Context, token, reqID, co
 func (m *mockProvClientForHub) GetVenues(ctx context.Context, token, reqID, corrID string) ([]models.Venue, error) {
 	return nil, nil
 }
+func (m *mockProvClientForHub) GetVenue(ctx context.Context, id, token, reqID, corrID string) (*models.VenueDetails, error) {
+	return nil, nil
+}
+func (m *mockProvClientForHub) UpdateVenue(ctx context.Context, id string, body []byte, token, reqID, corrID string) error {
+	return nil
+}
 func (m *mockProvClientForHub) GetInventory(ctx context.Context, token, reqID, corrID string, limit, offset int, unassigned bool) ([]models.InventoryTag, error) {
 	return nil, nil
 }
